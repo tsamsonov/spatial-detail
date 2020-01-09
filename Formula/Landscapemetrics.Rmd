@@ -173,7 +173,7 @@ compare = left_join(stats, metrics)
 
 ```{r}
 tab = compare %>% 
-  filter(Scale == 200) 
+  filter(Scale == 1000) 
 
 ggplot(tab, mapping = aes(urban, density, label = name)) +
   geom_point() +
@@ -215,6 +215,18 @@ cor.test(tab$density, log(tab$crops + 1) + log(tab$urban + 1))
 lm(density ~ log(urban + 1), tab)
 lm(density ~ log(crops + 1), tab)
 lm(density ~ log(crops + urban + 1), tab)
+```
+
+Зависимость плотности от сложности ландшафта:
+```{r}
+ggplot(tab, mapping = aes(joinent, density, label = name)) +
+  geom_point() +
+  geom_text_repel(
+    segment.size  = 0.3,
+    segment.color = "grey50",
+    direction     = "y",
+    hjust         = 0
+  )
 ```
 
 
