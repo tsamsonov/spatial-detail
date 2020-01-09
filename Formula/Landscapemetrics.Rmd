@@ -1,0 +1,65 @@
+---
+title: "Landscape metrics"
+output: bookdown::html_document2
+---
+
+```{r}
+library(landscapemetrics)
+library(tidyverse)
+library(stars)
+```
+
+Грузим данные
+```{r}
+vorkuta = read_stars('data/VORKUTA.tif') %>% 
+  select(type = 1) %>%
+  mutate(urban = (type == 50)) %>% 
+  # mutate(type = as.factor(type)) %>% 
+  st_warp(crs = 32662)
+moscow = read_stars('data/MOSCOW.tif') %>% 
+  select(type = 1) %>%
+  mutate(urban = (type == 50)) %>% 
+  # mutate(type = as.factor(type)) %>% 
+  st_warp(crs = 32662)
+elista = read_stars('data/ELISTA.tif') %>% 
+  select(type = 1) %>%
+  mutate(urban = (type == 50)) %>% 
+  # mutate(type = as.factor(type)) %>% 
+  st_warp(crs = 32662)
+lands = lst(vorkuta, moscow, elista)
+```
+
+Проверяем на читаемость:
+```{r}
+check_landscape(vorkuta)
+check_landscape(moscow)
+check_landscape(elista)
+```
+
+Считаем метрики сложности:
+```{r}
+(metrics = imap(lands, function(land, name) {
+  tibble(name = name,
+         ent = lsm_l_ent(land) %>% pull(value),
+         condent = lsm_l_condent(land) %>% pull(value),
+         joinent = lsm_l_joinent(land) %>% pull(value),
+         mutinf = lsm_l_mutinf(land) %>% pull(value),
+         relmutinf = mutinf / ent,
+         urban = 100 * sum(land$urban, na.rm = TRUE) / length(land$urban))
+}) %>% bind_rows())
+```
+
+```{r}
+ggplot(metrics, mapping = aes(ent, relmutinf, color = name)) +
+  geom_point()
+```
+
+Other indexes
+```{r}
+lsm_c_ai(moscow)
+```
+
+
+
+
+
