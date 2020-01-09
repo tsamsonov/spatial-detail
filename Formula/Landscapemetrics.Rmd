@@ -6,38 +6,99 @@ output: bookdown::html_document2
 ```{r}
 library(landscapemetrics)
 library(tidyverse)
+library(readxl)
 library(stars)
+```
+
+Восстанавливаем цветовую шкалу
+```{r}
+typesdf = read_excel('data/types.xlsx')
+types = typesdf$type
+
+colormap = read_table2('data/colormap.clr', 
+                       col_names = c('N', 'R', 'G', 'B', 'A', 'type')) %>% 
+  filter(type %in% types)
+
+pal = rgb(colormap$R/255, colormap$G/255, colormap$B/255, colormap$A/255)
+
 ```
 
 Грузим данные
 ```{r}
-vorkuta = read_stars('data/VORKUTA.tif') %>% 
+salekhard = read_stars('data/SALEKHARD.tif') %>% 
   select(type = 1) %>%
-  mutate(urban = (type == 50)) %>% 
-  # mutate(type = as.factor(type)) %>% 
+  mutate(typefac = factor(type, levels = types),
+         urban = (type == 50)) %>% 
   st_warp(crs = 32662)
 moscow = read_stars('data/MOSCOW.tif') %>% 
   select(type = 1) %>%
-  mutate(urban = (type == 50)) %>% 
-  # mutate(type = as.factor(type)) %>% 
+  mutate(typefac = factor(type, levels = types),
+         urban = (type == 50)) %>% 
   st_warp(crs = 32662)
-elista = read_stars('data/ELISTA.tif') %>% 
+rostov = read_stars('data/ROSTOV.tif') %>% 
   select(type = 1) %>%
-  mutate(urban = (type == 50)) %>% 
-  # mutate(type = as.factor(type)) %>% 
+  mutate(typefac = factor(type, levels = types),
+         urban = (type == 50)) %>% 
   st_warp(crs = 32662)
-lands = lst(vorkuta, moscow, elista)
+ufa = read_stars('data/UFA.tif') %>% 
+  select(type = 1) %>%
+  mutate(typefac = factor(type, levels = types),
+         urban = (type == 50)) %>% 
+  st_warp(crs = 32662)
+petro = read_stars('data/PETRO.tif') %>% 
+  select(type = 1) %>%
+  mutate(typefac = factor(type, levels = types),
+         urban = (type == 50)) %>% 
+  st_warp(crs = 32662)
 ```
 
-Проверяем на читаемость:
-```{r}
-check_landscape(vorkuta)
-check_landscape(moscow)
-check_landscape(elista)
+Визуализируем:
+```{r, fig.width=6, fig.height=6}
+ggplot() +
+  geom_stars(data = salekhard['typefac']) +
+  scale_fill_manual(values = pal, breaks = types, labels = typesdf$class, drop = FALSE) +
+  coord_sf(crs = st_crs(salekhard)) +
+  xlab('LON') + ylab('LAT') +
+  theme_bw() + theme(legend.position = 'bottom', legend.title=element_blank()) +
+  guides(fill = guide_legend(ncol=4))
+
+ggplot() +
+  geom_stars(data = moscow['typefac']) +
+  scale_fill_manual(values = pal, breaks = types, labels = typesdf$class, drop = FALSE) +
+  coord_sf(crs = st_crs(moscow)) +
+  xlab('LON') + ylab('LAT') +
+  theme_bw() + theme(legend.position = 'bottom', legend.title=element_blank())  +
+  guides(fill = guide_legend(ncol=4))
+
+ggplot() +
+  geom_stars(data = rostov['typefac']) +
+  scale_fill_manual(values = pal, breaks = types, labels = typesdf$class, drop = FALSE) +
+  coord_sf(crs = st_crs(moscow)) +
+  xlab('LON') + ylab('LAT') +
+  theme_bw() + theme(legend.position = 'bottom', legend.title=element_blank())  +
+  guides(fill = guide_legend(ncol=4))
+
+ggplot() +
+  geom_stars(data = ufa['typefac']) +
+  scale_fill_manual(values = pal, breaks = types, labels = typesdf$class, drop = FALSE) +
+  coord_sf(crs = st_crs(moscow)) +
+  xlab('LON') + ylab('LAT') +
+  theme_bw() + theme(legend.position = 'bottom', legend.title=element_blank())  +
+  guides(fill = guide_legend(ncol=4))
+
+ggplot() +
+  geom_stars(data = petro['typefac']) +
+  scale_fill_manual(values = pal, breaks = types, labels = typesdf$class, drop = FALSE) +
+  coord_sf(crs = st_crs(moscow)) +
+  xlab('LON') + ylab('LAT') +
+  theme_bw() + theme(legend.position = 'bottom', legend.title=element_blank())  +
+  guides(fill = guide_legend(ncol=4))
 ```
 
 Считаем метрики сложности:
 ```{r}
+lands = lst(САЛЕХАРД = salekhard, МОСКВА = moscow, `РОСТОВ-ДОН` = rostov, УФА = ufa, ПЕТРОЗАВОДСК = petro)
+
 (metrics = imap(lands, function(land, name) {
   tibble(name = name,
          ent = lsm_l_ent(land) %>% pull(value),
@@ -54,10 +115,65 @@ ggplot(metrics, mapping = aes(ent, relmutinf, color = name)) +
   geom_point()
 ```
 
-Other indexes
+# Пространственные данные
+
+Читаем данные:
 ```{r}
-lsm_c_ai(moscow)
+scales = c(200, 500, 1000)
+regions = c('МОСКВА', 'ПЕТРОЗАВОДСК', 'САЛЕХАРД', 'УФА', 'РОСТОВ-ДОН')
+
+lindata = lapply(scales, function(scale) { 
+    read_delim(paste0('tables/resLines', scale, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+    select(-ncol(.)) %>% 
+    mutate(Scale = scale,
+           Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(as.character(Scale))))
+  }) %>% 
+  bind_rows() %>% 
+  filter(!stringr::str_detect(Name, 'clip')) %>% 
+  mutate(Layer = stringr::str_sub(Name, 1, 3),
+         Dim = stringr::str_sub(Name, 4, 6)) %>% 
+  mutate_all(~replace(., is.nan(.), 0)) %>% 
+  filter(Region %in% regions)
+
+pntdata = lapply(scales, function(X) { 
+    read_delim(paste0('tables/resPoints', X, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+    select(-ncol(.)) %>% 
+    mutate(Scale = as.character(X),
+           Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(Scale)))
+  }) %>% 
+  bind_rows() %>% 
+  mutate(Layer = stringr::str_sub(Name, 1, 3),
+         Dim = stringr::str_sub(Name, 4, 6)) %>% 
+  filter(Region %in% regions)
+
+poldata = lapply(scales, function(X) { 
+    read_delim(paste0('tables/resPolygons', X, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+    select(-ncol(.)) %>% 
+    mutate(Scale = as.character(X),
+           Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(Scale)))
+  }) %>% 
+  bind_rows() %>% 
+  mutate(Layer = stringr::str_sub(Name, 1, 3),
+         Dim = stringr::str_sub(Name, 4, 6)) %>% 
+  filter(Region %in% regions)
+
+nuniq = length(unique(poldata$Region))
+
+inters = read_delim('tables/topLines.txt', delim = ';', locale = locale(decimal_mark = ".")) %>% 
+  select(-ncol(.)) %>% 
+  mutate(Scale = as.character(rep(scales, each = n()/3)),
+         Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(Scale)))
 ```
+
+Подсчитаем суммарное количество социально-экономических точек:
+```{r}
+linpts = lindata %>% 
+  group_by(Region, Scale) %>% 
+  summarise(npts = sum(PointsNumber))
+```
+
+
+
 
 
 

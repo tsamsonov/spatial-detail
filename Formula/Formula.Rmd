@@ -10,7 +10,7 @@ library(tidyverse)
 scales = c(200, 500, 1000)
 
 lindata = lapply(scales, function(scale) { 
-    read_delim(paste0('resLines', scale, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+    read_delim(paste0('tables/resLines', scale, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
     select(-ncol(.)) %>% 
     mutate(Scale = scale,
            Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(as.character(Scale))))
@@ -22,7 +22,7 @@ lindata = lapply(scales, function(scale) {
   mutate_all(~replace(., is.nan(.), 0))
 
 pntdata = lapply(scales, function(X) { 
-    read_delim(paste0('resPoints', X, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+    read_delim(paste0('tables/resPoints', X, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
     select(-ncol(.)) %>% 
     mutate(Scale = as.character(X),
            Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(Scale)))
@@ -32,7 +32,7 @@ pntdata = lapply(scales, function(X) {
          Dim = stringr::str_sub(Name, 4, 6))
 
 poldata = lapply(scales, function(X) { 
-    read_delim(paste0('resPolygons', X, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+    read_delim(paste0('tables/resPolygons', X, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
     select(-ncol(.)) %>% 
     mutate(Scale = as.character(X),
            Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(Scale)))
@@ -43,7 +43,7 @@ poldata = lapply(scales, function(X) {
 
 nuniq = length(unique(poldata$Region))
 
-inters = read_delim('topLines.txt', delim = ';', locale = locale(decimal_mark = ".")) %>% 
+inters = read_delim('tables/topLines.txt', delim = ';', locale = locale(decimal_mark = ".")) %>% 
   select(-ncol(.)) %>% 
   mutate(Scale = as.character(rep(scales, each = nuniq)),
          Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(Scale)))
