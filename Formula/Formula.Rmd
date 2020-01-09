@@ -1,0 +1,107 @@
+---
+title: "Оценка детализации пространственных данных"
+output: html_notebook
+---
+
+Читаем данные:
+```{r}
+library(tidyverse)
+
+scales = c(200, 500, 1000)
+
+lindata = lapply(scales, function(scale) { 
+    read_delim(paste0('resLines', scale, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+    select(-ncol(.)) %>% 
+    mutate(Scale = scale,
+           Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(as.character(Scale))))
+  }) %>% 
+  bind_rows() %>% 
+  filter(!stringr::str_detect(Name, 'clip')) %>% 
+  mutate(Layer = stringr::str_sub(Name, 1, 3),
+         Dim = stringr::str_sub(Name, 4, 6)) %>% 
+  mutate_all(~replace(., is.nan(.), 0))
+
+pntdata = lapply(scales, function(X) { 
+    read_delim(paste0('resPoints', X, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+    select(-ncol(.)) %>% 
+    mutate(Scale = as.character(X),
+           Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(Scale)))
+  }) %>% 
+  bind_rows() %>% 
+  mutate(Layer = stringr::str_sub(Name, 1, 3),
+         Dim = stringr::str_sub(Name, 4, 6))
+
+poldata = lapply(scales, function(X) { 
+    read_delim(paste0('resPolygons', X, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+    select(-ncol(.)) %>% 
+    mutate(Scale = as.character(X),
+           Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(Scale)))
+  }) %>% 
+  bind_rows() %>% 
+  mutate(Layer = stringr::str_sub(Name, 1, 3),
+         Dim = stringr::str_sub(Name, 4, 6))
+
+nuniq = length(unique(poldata$Region))
+
+inters = read_delim('topLines.txt', delim = ';', locale = locale(decimal_mark = ".")) %>% 
+  select(-ncol(.)) %>% 
+  mutate(Scale = as.character(rep(scales, each = nuniq)),
+         Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(Scale)))
+
+```
+
+Считаем отношения показателей
+```{r}
+linvor = lindata %>% 
+  filter(Region == 'ВОРОНЕЖ', Layer == 'hdr')
+
+linest = lindata %>% 
+  group_by(Region, Layer) %>% 
+  arrange(Scale) %>% 
+  summarise_if(is.numeric, list(`200-500` = function(X) { X[2] / X[1] },
+                                `500-1000` = function(X) { X[3] / X[2] })) %>% 
+  ungroup() %>% 
+  pivot_longer(cols = -c(Region, Layer), 
+               names_pattern = '(.*)_(.*)-(.*)',
+               names_to = c('var', 'large', 'small'),
+               values_to = 'ratio') %>% 
+  na.omit() %>%
+  filter(is.finite(ratio)) %>%
+  mutate(logratio = log(ratio),
+         large = as.numeric(large),
+         small = as.numeric(small))
+
+length_df = select(lindata, Region, Layer, Scale, Length)
+
+linest_length = linest %>% 
+  left_join(length_df, by  = c('Region' = 'Region', 'Layer' = 'Layer', 'large' = 'Scale')) %>% 
+  rename(length_large = Length) %>% 
+  left_join(length_df, by  = c('Region' = 'Region', 'Layer' = 'Layer', 'small' = 'Scale')) %>% 
+  rename(length_small = Length) %>% 
+  mutate(length = length_large + length_small)
+
+linest_attr = linest_length %>% 
+  group_by(var, Layer, large, small) %>% 
+  summarise(ratio = weighted.mean(ratio, length, na.rm = TRUE),
+            logratio = log(ratio),
+            length = sum(length, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  group_by(var, large) %>% 
+  mutate(weight = length / sum(length))
+  
+```
+
+Строим гистограммы отношений по слоям:
+```{r, fig.width=6}
+ggplot(data = linest_attr) +
+  geom_density(mapping = aes(x = logratio, fill = as.factor(large), weight = weight), alpha = 0.5) +
+  facet_wrap(~var)
+
+ggplot(data = linest_attr) +
+  geom_boxplot(mapping = aes(y = logratio, fill = as.factor(large)), alpha = 0.5) +
+  # ylim(c(-5, 5)) +
+  coord_flip() +
+  facet_wrap(~var)
+```
+
+
