@@ -12,6 +12,7 @@ library(stars)
 ```
 
 Восстанавливаем цветовую шкалу
+
 ```{r}
 typesdf = read_excel('data/types.xlsx')
 types = typesdf$type
