@@ -3,7 +3,14 @@ title: "Landscape metrics"
 output: bookdown::html_document2
 ---
 
-```{r}
+> __Задача:__ Разработка метрик и программного обеспечения для оценки детализации множества пространственных объектов, а также детализации карты (базы пространственных данных) в целом на основе учета геометрических, семантических и символьных (применяемых при отображении) параметров. Оценка устойчивости и сопоставимости рассчитанных значений метрик для фрагментов данных, извлеченных из топографических карт одного и разных масштабов.
+
+В рамках работ 2019 года была разраю
+
+
+```{r setup, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(fig.height = 6, fig.width = 6, collapse = TRUE, 
+                      echo = FALSE, message = FALSE, warning = FALSE)
 library(landscapemetrics)
 library(tidyverse)
 library(ggrepel)
@@ -11,22 +18,12 @@ library(readxl)
 library(stars)
 ```
 
-Восстанавливаем цветовую шкалу
-
 ```{r}
+# Ландшафтные данные
+
 typesdf = read_excel('data/types.xlsx')
 types = typesdf$type
 
-colormap = read_table2('data/colormap.clr', 
-                       col_names = c('N', 'R', 'G', 'B', 'A', 'type')) %>% 
-  filter(type %in% types)
-
-pal = rgb(colormap$R/255, colormap$G/255, colormap$B/255, colormap$A/255)
-
-```
-
-Грузим данные
-```{r}
 read_lc = function(file) {
   read_stars(file) %>% 
     select(type = 1) %>%
@@ -45,10 +42,30 @@ surgut = read_lc('data/SURGUT.tif')
 ustug = read_lc('data/USTUG.tif')
 grozny = read_lc('data/GROZNY.tif')
 voronezh = read_lc('data/VORONEZH.tif')
+
+lands = lst(САЛЕХАРД = salekhard, МОСКВА = moscow, `РОСТОВ-НА-ДОНУ` = rostov, 
+            УФА = ufa, ПЕТРОЗАВОДСК = petro, ШАРЬЯ = ustug, ГРОЗНЫЙ = grozny, 
+            ВОРОНЕЖ = voronezh, СУРГУТ = surgut)
+
+(metrics = imap(lands, function(land, name) {
+  tibble(name = name,
+         ent = lsm_l_ent(land) %>% pull(value),
+         condent = lsm_l_condent(land) %>% pull(value),
+         joinent = lsm_l_joinent(land) %>% pull(value),
+         mutinf = lsm_l_mutinf(land) %>% pull(value),
+         relmutinf = mutinf / ent,
+         urban = 100 * sum(land$urban, na.rm = TRUE) / length(land$urban),
+         crops = 100 * sum(land$crops, na.rm = TRUE) / length(land$crops))
+}) %>% bind_rows())
 ```
 
-Визуализируем:
 ```{r, fig.width=6, fig.height=6}
+colormap = read_table2('data/colormap.clr', 
+                       col_names = c('N', 'R', 'G', 'B', 'A', 'type')) %>% 
+  filter(type %in% types)
+
+pal = rgb(colormap$R/255, colormap$G/255, colormap$B/255, colormap$A/255)
+
 plot_lc = function(lc) {
   ggplot() +
     geom_stars(data = lc['typefac']) +
@@ -70,69 +87,35 @@ plot_lc(grozny)
 plot_lc(voronezh)
 ```
 
-Считаем метрики сложности:
 ```{r}
-lands = lst(САЛЕХАРД = salekhard, МОСКВА = moscow, `РОСТОВ-НА-ДОНУ` = rostov, УФА = ufa, ПЕТРОЗАВОДСК = petro,
-            ШАРЬЯ = ustug, ГРОЗНЫЙ = grozny, ВОРОНЕЖ = voronezh, СУРГУТ = surgut)
+# Векторные данные
 
-(metrics = imap(lands, function(land, name) {
-  tibble(name = name,
-         ent = lsm_l_ent(land) %>% pull(value),
-         condent = lsm_l_condent(land) %>% pull(value),
-         joinent = lsm_l_joinent(land) %>% pull(value),
-         mutinf = lsm_l_mutinf(land) %>% pull(value),
-         relmutinf = mutinf / ent,
-         urban = 100 * sum(land$urban, na.rm = TRUE) / length(land$urban),
-         crops = 100 * sum(land$crops, na.rm = TRUE) / length(land$crops))
-}) %>% bind_rows())
-```
-
-```{r}
-ggplot(metrics, mapping = aes(ent, relmutinf, label = name)) +
-  geom_point()
-```
-
-# Пространственные данные
-
-Читаем данные:
-```{r}
 scales = c(200, 500, 1000)
 regions = c('МОСКВА', 'ПЕТРОЗАВОДСК', 'САЛЕХАРД', 'УФА', 'РОСТОВ-ДОН')
 
-lindata = lapply(scales, function(scale) { 
-    read_delim(paste0('tables/resLines', scale, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+read_data = function(file) {
+  lapply(scales, function(scale) { 
+    read_delim(paste0(file, scale, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
     select(-ncol(.)) %>% 
     mutate(Scale = scale,
            Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(as.character(Scale))))
   }) %>% 
-  bind_rows() %>% 
-  filter(!stringr::str_detect(Name, 'clip')) %>% 
-  mutate(Layer = stringr::str_sub(Name, 1, 3),
-         Dim = stringr::str_sub(Name, 4, 6)) %>% 
-  filter(!(Layer %in% c('rlh', 'rlf', 'veg'))) %>% 
-  mutate_all(~replace(., is.nan(.), 0))
+    bind_rows() %>% 
+    filter(!stringr::str_detect(Name, 'clip')) %>% 
+    mutate(Layer = stringr::str_sub(Name, 1, 3),
+           Dim = stringr::str_sub(Name, 4, 6)) %>% 
+    filter(!(Layer %in% c('rlh', 'rlf', 'veg', 'hdr', 'hdt', 'hdc', 'for'))) %>% 
+    mutate_all(~replace(., is.nan(.), 0)) %>% 
+    group_by(Scale) %>% 
+    complete(Region, Layer) %>% 
+    ungroup() %>% 
+    mutate(missing = ifelse(is.na(Name), Layer, NA)) %>% 
+    filter(!(Layer %in% unique(missing)))
+}
 
-pntdata = lapply(scales, function(scale) { 
-    read_delim(paste0('tables/resPoints', scale, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
-    select(-ncol(.)) %>% 
-    mutate(Scale = scale,
-           Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(as.character(Scale))))
-  }) %>% 
-  bind_rows() %>% 
-  mutate(Layer = stringr::str_sub(Name, 1, 3),
-         Dim = stringr::str_sub(Name, 4, 6)) %>% 
-  filter(!(Layer %in% c('rlh', 'rlf', 'veg')))
-
-poldata = lapply(scales, function(scale) { 
-    read_delim(paste0('tables/resPolygons', scale, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
-    select(-ncol(.)) %>% 
-    mutate(Scale = scale,
-           Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(as.character(Scale))))
-  }) %>% 
-  bind_rows() %>% 
-  mutate(Layer = stringr::str_sub(Name, 1, 3),
-         Dim = stringr::str_sub(Name, 4, 6)) %>% 
-  filter(!(Layer %in% c('rlh', 'rlf', 'veg')))
+lindata = read_data('tables/resLines')
+pntdata = read_data('tables/resPoints')
+poldata = read_data('tables/resPolygons')
 
 nuniq = length(unique(poldata$Region))
 
@@ -142,85 +125,67 @@ inters = read_delim('tables/topLines.txt', delim = ';', locale = locale(decimal_
          Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(Scale)))
 ```
 
-Подсчитаем суммарное количество социально-экономических точек:
+
 ```{r}
-linpts = lindata %>% 
+# Подсчитаем суммарное количество социально-экономических точек
+linstats = lindata %>% 
   group_by(Region, Scale) %>% 
-  summarise(linnpts = sum(PointsNumber))
-polpts = poldata %>% 
+  summarise(linnpts = sum(PointsNumber),
+            height = weighted.mean(AverageHeight, NumberOfObj),
+            width = weighted.mean(AverageWidth, NumberOfObj),
+            numlin = sum(NumberOfObj))
+polstats = poldata %>% 
   group_by(Region, Scale) %>% 
   summarise(polnpts = sum(PointsNumber),
+            numpol = sum(NumberOfObj),
             area = 1e-6 * sum(TotalArea * (Layer == 'adm')))
-pntpts = pntdata %>% 
+pntstats = pntdata %>% 
   group_by(Region, Scale) %>% 
-  summarise(pntnpts = sum(NumberOfObj))
+  summarise(pntnpts = sum(NumberOfObj),
+            numpts = sum(NumberOfObj))
 
 
-stats = bind_cols(linpts, polpts, pntpts) %>% 
-  select(name = Region, Scale, pntnpts, linnpts, polnpts, area) %>% 
+stats = bind_cols(linstats, polstats, pntstats) %>% 
+  select(name = Region, Scale, pntnpts, linnpts, polnpts, 
+         numlin, numpts, numpol, area, height, width) %>% 
   mutate(total = pntnpts + linnpts + polnpts,
-         density = total / area) %>% 
+         num = numlin + numpts + numpol,
+         pnt_density = 100 * total / area,
+         obj_density = 100 * num / area) %>% 
   ungroup() %>% 
   mutate(name = ifelse(name == 'РОСТОВ-ДОН', 'РОСТОВ-НА-ДОНУ',
                        ifelse(name == 'УСТЮГ', 'ШАРЬЯ', name)))
-```
 
-Соединяем
-```{r}
 compare = left_join(stats, metrics)
 ```
 
 Корреляционный и регрессионный анализ
 
-```{r}
-tab = compare %>% 
-  filter(Scale == 1000) 
+```{r, fig.height=4, fig.width=4}
+tab = compare %>%
+  mutate(Scale = factor(Scale, levels = c(200, 500, 1000)))
+  # filter(Scale == 1000) 
 
-ggplot(tab, mapping = aes(urban, density, label = name)) +
-  geom_point() +
-  geom_smooth(method = 'lm') +
-  geom_text_repel(
-    segment.size  = 0.3,
-    segment.color = "grey50",
-    direction     = "y",
-    hjust         = 0
-  ) +
-  scale_x_log10()
+var = 'obj_density'
+y = pull(tab, var)
 
-ggplot(tab, mapping = aes(crops, density, label = name)) +
-  geom_point() +
-  geom_smooth(method = 'lm') +
-  geom_text_repel(
-    segment.size  = 0.3,
-    segment.color = "grey50",
-    direction     = "y",
-    hjust         = 0
-  ) +
-  scale_x_log10()
+plot_lm = function(var1, var2) {
+  ggplot(tab, mapping = aes_string(var1, var2, group = 'Scale', color = 'Scale', label = 'name')) +
+    geom_point() +
+    geom_smooth(method = 'lm') +
+    geom_text_repel(
+      segment.size  = 0.3,
+      segment.color = "grey50",
+      direction     = "y",
+      hjust         = 0
+    ) +
+    scale_x_log10()
+}
 
-ggplot(tab, mapping = aes(crops + urban, density, label = name)) +
-  geom_point() +
-  geom_smooth(method = 'lm') +
-  geom_text_repel(
-    segment.size  = 0.3,
-    segment.color = "grey50",
-    direction     = "y",
-    hjust         = 0
-  ) +
-  scale_x_log10()
+plot_lm('urban', var)
+plot_lm('crops', var)
 
-cor.test(tab$density, log(tab$urban + 1))
-cor.test(tab$density, log(tab$crops + 1))
-cor.test(tab$density, log(tab$crops + 1) + log(tab$urban + 1))
-
-lm(density ~ log(urban + 1), tab)
-lm(density ~ log(crops + 1), tab)
-lm(density ~ log(crops + urban + 1), tab)
-```
-
-Зависимость плотности от сложности ландшафта:
-```{r}
-ggplot(tab, mapping = aes(joinent, density, label = name)) +
+ggplot(tab, mapping = aes(ent, pnt_density, color = Scale, label = name)) +
   geom_point() +
   geom_text_repel(
     segment.size  = 0.3,
@@ -228,7 +193,22 @@ ggplot(tab, mapping = aes(joinent, density, label = name)) +
     direction     = "y",
     hjust         = 0
   )
+
+ggplot(tab, mapping = aes(name, sqrt(obj_density * pnt_density) / (log(urban + 1) + log(crops + 1) + 1), fill = Scale)) +
+  # geom_col(position = "fill") +
+  geom_col() +
+  coord_flip()
+
+cor.test(y, log(tab$urban + 1))
+cor.test(y, log(tab$crops + 1))
+cor.test(y, log(tab$crops + 1) + log(tab$urban + 1))
+
+lm(y ~ log(tab$urban + 1))
+lm(y ~ log(tab$crops + 1))
+lm(y ~ log(tab$crops + 1) + log(tab$urban + 1))
 ```
+
+
 
 
 
