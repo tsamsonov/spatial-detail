@@ -9,6 +9,7 @@ output:
 knitr::opts_chunk$set(fig.height = 12, fig.width = 12, collapse = TRUE, 
                       echo = FALSE, message = FALSE, warning = FALSE)
 library(landscapemetrics)
+library(ggstatsplot)
 library(patchwork)
 library(tidyverse)
 library(ggrepel)
@@ -155,7 +156,13 @@ stats = bind_cols(linstats, polstats, pntstats) %>%
 tab = stats %>% 
   left_join(inters) %>% 
   mutate(Scale = factor(Scale, levels = c(200, 500, 1000)),
-         int_density = 100 * intersections / area) %>% 
+         int_density = 100 * intersections / area,
+         name_title = str_to_title(name)) %>% 
+  group_by(Scale) %>% 
+  mutate(rel_pnt_density = pnt_density / mean(pnt_density),
+         rel_obj_density = obj_density / mean(obj_density),
+         rel_int_density = int_density / mean(int_density)) %>% 
+  ungroup() %>% 
   left_join(metrics)
   
 ```
@@ -279,7 +286,9 @@ p6 = ggplot(tab, mapping = aes(Scale, minarea, fill = Scale)) +
 
 В свою очередь плотность объектов на карте влияет на надёжность оценок детализации, получаемых на основе анализа абсолютных характеристик детализации: при малом количестве и разнообразии объектов оценки размеров будут несостоятельными. Так, например, значительный выброс оценки минимальной средней площади для участка Салехард в масштабе 1:1 000 000 связан с тем, что на этом участке наименее крупными полигональными социально-экономическими объектами являются муниципальные районы, имеющие огромную площадь.
 
-В данной части исследования мы провели эксперимент направленный на выяснение зависимости между уровнем хозяйственной освоенности территории и плотностью размещения социально-экономических объектов на картах. Для определения уровня хозяйственной освоенности мы использовали независимый источник информации — растровый набор данных Copernicus Global Land Cover (https://land.copernicus.eu/global/products/lc), имеющий глобальное покрытие и размер ячейки 100 м. Для каждой ячейки этого растра известна доля одного из 22 типов земельного покрова, из которых два — урбанизированные территории и с/х земли — можно отнести к элементам хозяйственного осовения территории. Карты земельного покрова для исследованных участков показаны на Рис. \@ref(fig:sal) — \@ref(fig:vor)
+В данной части исследования мы провели эксперимент направленный на выяснение зависимости между уровнем хозяйственной освоенности территории и плотностью размещения социально-экономических объектов на картах. Для определения уровня хозяйственной освоенности мы использовали независимый источник информации — растровый набор данных Copernicus Global Land Cover (https://land.copernicus.eu/global/products/lc), имеющий глобальное покрытие и размер ячейки 100 м. Для каждой ячейки этого растра известна доля одного из 22 типов земельного покрова, из которых два — урбанизированные территории и с/х земли — можно отнести к элементам хозяйственного освоения территории. 
+
+Карты земельного покрова для исследованных участков показаны на Рис. \@ref(fig:sal) — \@ref(fig:vor)
 
 ```{r sal, fig.cap='Типы земельного покрова по данным Copernicus Global Land Cover (участок Салехард)'}
 plot_lc(salekhard)
@@ -317,15 +326,11 @@ plot_lc(grozny)
 plot_lc(voronezh)
 ```
 
+Нами был проведен корреляционный и регрессионный анализ зависимости плотностных показателей детализации социально-экономических элементов карт от уровня компонент хозяйственной освоенности территории. Диаграммы рассеяния между плотностью точек/объектов/пересечений и долей урбанизированных территорий/сельхозугодий представлены на Рис. \@ref(fig:scatt). Дополнительно на них нанесена линия регрессии с доверительными интервалами вероятности 0.95. 
 
-Корреляционный и регрессионный анализ
-
-```{r}
-var = 'obj_density'
-y = pull(tab, var)
-
-plot_lm = function(var1, var2) {
-  ggplot(tab, mapping = aes_string(var1, var2, group = 'Scale', color = 'Scale', label = 'name')) +
+```{r scatt, fig.width=12, fig.height=16, fig.cap='Зависимость плотностных показателей детализации социально-экономических элементов карт от уровня компонент хозяйственной освоенности территории: a-c) — урбанизированные территории, d-f) — сельхозугодья'}
+plot_lm = function(var1, var2, legend = TRUE, xlabel = TRUE, ylabel = TRUE) {
+  g = ggplot(tab, mapping = aes_string(var1, var2, group = 'Scale', color = 'Scale', label = 'name_title')) +
     geom_point() +
     geom_smooth(method = 'lm') +
     geom_text_repel(
@@ -335,32 +340,177 @@ plot_lm = function(var1, var2) {
       hjust         = 0
     ) +
     scale_x_log10()
+  if(!legend)
+    g = g + theme(legend.position = "none")
+  if(!xlabel)
+    g = g + xlab(NULL)
+  if(!ylabel)
+    g = g + ylab(NULL)
+  return(g)
 }
 
-plot_lm('urban', var)
-plot_lm('crops', var)
+p1 = plot_lm('urban', 'pnt_density', F, F)
+p2 = plot_lm('urban', 'obj_density', F, F)
+p3 = plot_lm('urban', 'int_density', F)
+p4 = plot_lm('crops', 'pnt_density', T, F, F)
+p5 = plot_lm('crops', 'obj_density', T, F, F)
+p6 = plot_lm('crops', 'int_density', T, T, F)
 
-ggplot(tab, mapping = aes(ent, pnt_density, color = Scale, label = name)) +
-  geom_point() +
-  geom_text_repel(
-    segment.size  = 0.3,
-    segment.color = "grey50",
-    direction     = "y",
-    hjust         = 0
-  )
-
-cor.test(y, log(tab$urban + 1))
-cor.test(y, log(tab$crops + 1))
-cor.test(y, log(tab$crops + 1) + log(tab$urban + 1))
-
-lm(y ~ log(tab$urban + 1))
-lm(y ~ log(tab$crops + 1))
-lm(y ~ log(tab$crops + 1) + log(tab$urban + 1))
+((p1 / p2 / p3) | (p4 / p5 / p6)) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
 ```
 
 
+```{r scatt, fig.width=12, fig.height=16, fig.cap='Зависимость плотностных показателей детализации социально-экономических элементов карт от уровня компонент хозяйственной освоенности территории: a-c) — урбанизированные территории, d-f) — сельхозугодья'}
+plot_lm2 = function(var1, var2, legend = TRUE, xlabel = TRUE, ylabel = TRUE) {
+  g = ggplot(tab, mapping = aes_string(var1, var2, label = 'name_title')) +
+    geom_point() +
+    geom_smooth(method = 'lm') +
+    geom_text_repel(
+      segment.size  = 0.3,
+      segment.color = "grey50",
+      direction     = "y",
+      hjust         = 0
+    ) +
+    scale_x_log10()
+  if(!legend)
+    g = g + theme(legend.position = "none")
+  if(!xlabel)
+    g = g + xlab(NULL)
+  if(!ylabel)
+    g = g + ylab(NULL)
+  return(g)
+}
 
+p1 = plot_lm2('urban', 'rel_pnt_density', F, F)
+p2 = plot_lm2('urban', 'rel_obj_density', F, F)
+p3 = plot_lm2('urban', 'rel_int_density', F)
+p4 = plot_lm2('crops', 'rel_pnt_density', T, F, F)
+p5 = plot_lm2('crops', 'rel_obj_density', T, F, F)
+p6 = plot_lm2('crops', 'rel_int_density', T, T, F)
 
+((p1 / p2 / p3) | (p4 / p5 / p6)) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+```
+
+По результатам анализа была обнаружена статистически значимая (p < 0.05) зависимость между __логарифмом__ процентной доли хозяйственно освоенных земель и плотностью пространственных объектов на карте. Результаты представлены в виде корреляционных матриц, сгруппированных по масштабам на Рис. \@ref(fig:corrmat). В масштабе 1:200 000 оказалась статистически не значима зависимость между плотностью пересечений и урбанизированностью, а в масштабе 1:500 000 — зависимости между плотностью точек, плотностью объектов и также урбанизированностью. Также можно обратить внимание на то, что в более крупных масштабах доля сельскохозяйственных территорий начинает играть более значимую роль в повышении плотности изображения, что может быть связано с подробным показом подъездных проселочных дорог. При этом стабильно высоким оказывается синтетический показатель `urban_crops`, получаемый путем суммирования логарифма доли урбанизированных территорий и логарифма доли сельхозугодий (к обоим долям перед логарифмированием прибавляется единица, чтобы избежать отрицательных и бесконечных величин там где доля составляет менее 1%).
+
+```{r corrmat, fig.width = 6, fig.height = 16, fig.cap='Корреляционные матрицы между долей хозяйственно освоенных земель и относительными (плотностными) параметрами детализации карты'}
+p1 = ggstatsplot::ggcorrmat(
+  data = mutate(filter(tab, Scale == 200), urban = log(urban + 1), crops = log(crops + 1), urban_crops = urban + crops),
+  cor.vars = c(urban, crops, urban_crops, pnt_density, obj_density, int_density),
+  title = '1:200 000'
+)
+
+p2 = ggstatsplot::ggcorrmat(
+  data = mutate(filter(tab, Scale == 500), urban = log(urban + 1), crops = log(crops + 1), urban_crops = urban + crops),
+  cor.vars = c(urban, crops, urban_crops, pnt_density, obj_density, int_density),
+  title = '1:500 000'
+)
+
+p3 = ggstatsplot::ggcorrmat(
+  data = mutate(filter(tab, Scale == 1000), urban = log(urban + 1), crops = log(crops + 1), urban_crops = urban + crops),
+  cor.vars = c(urban, crops, urban_crops, pnt_density, obj_density, int_density),
+  title = '1:1 000 000'
+)
+
+(p1 / p2 / p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+```
+
+Далее мы нашли коэффициенты линейной регрессии следующего вида:
+$$d_i = \alpha_i + \beta_i \log(u + 1) + \gamma_i \log(c + 1),$$
+где $d_i$ — величина $i$-й метрики детализации, $u$ — доля урбанизированных территорий, $с$ — доля сельскохозяйственных угодий. Результаты регрессионного анализа приведены в Таблице \@ref(tab:coef).
+
+```{r coef}
+fields = c('rel_pnt_density', 'rel_obj_density', 'rel_int_density')
+
+scales2 = c(200, 500, 1000, NA)
+
+lms = map(scales2, function(scale) {
+  corrtab = tab
+  if(!is.na(scale))
+    corrtab = filter(tab, Scale == scale)
+  
+  map(fields, function(field) {
+    var = pull(corrtab, field)
+    beta = log(corrtab$urban + 1)
+    gamma = log(corrtab$crops + 1)
+    lm(var ~ beta + gamma) %>% 
+      coef() %>%
+      t() %>% 
+      as_tibble() %>% 
+      mutate(scale = scale,
+             var = field) %>% 
+      select(var, scale, alpha = 1, beta, gamma)
+  }) %>% bind_rows()
+}) %>% bind_rows() %>%
+  mutate(scale = factor(scale, levels = scales)) %>% 
+  arrange(desc(var), scale)
+
+lms_wide = lms %>% 
+  pivot_wider(id_cols = scale, names_from = var, values_from = alpha:gamma)
+
+lms_all = filter(lms_wide, is.na(scale)) %>% 
+  mutate(count = 3) %>% 
+  uncount(count) %>% 
+  mutate(scale = factor(scales, levels = scales)) %>% 
+  setNames(paste(names(.), '_all', sep = '')) %>% 
+  rename(scale = 1)
+  
+tabreg = left_join(tab, lms_wide, by = c('Scale' = 'scale')) %>% 
+  left_join(lms_all, by = c('Scale' = 'scale')) %>% 
+  mutate(rpnt_density = pnt_density / (alpha_rel_pnt_density_all + beta_rel_pnt_density_all * log(urban + 1) + gamma_rel_pnt_density_all * log(crops + 1)),
+         robj_density = obj_density / (alpha_rel_obj_density_all + beta_rel_obj_density_all * log(urban + 1) + gamma_rel_obj_density_all * log(crops + 1)),
+         rint_density = int_density / (alpha_rel_int_density_all + beta_rel_int_density_all * log(urban + 1) + gamma_rel_int_density_all * log(crops + 1)))
+
+knitr::kable(lms, caption = 'Коэффициенты линейной регрессии между логарифмом процентной доли урбанизированных территорий, логарифмом процентной доли с/х угодий и плотностными параметрами детализации карты')
+```
+
+На заключительном этапе анализа была проанализирована возможность нормировать плотность объектов на уровень хозяйственной освоенности с использованием найденных регрессионных уравнений.
+
+```{r denstats, fig.width=10, fig.height=14, fig.cap='Относительные параметры геометрической детализации карты (плотность)'}
+p1 = ggplot(tabreg, mapping = aes(name, rpnt_density, fill = Scale)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  xlab(NULL) +
+  guides(fill = guide_legend(reverse=T)) +
+  ggtitle('Плотность точек на 100 кв. км')
+
+p2 = ggplot(tabreg, mapping = aes(name, robj_density, fill = Scale)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  xlab(NULL) +
+  guides(fill = guide_legend(reverse=T)) +
+  ggtitle('Плотность объектов на 100 кв. км')
+
+p3 = ggplot(tabreg, mapping = aes(name, rint_density, fill = Scale)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  xlab(NULL) +
+  guides(fill = guide_legend(reverse=T)) +
+  ggtitle('Плотность пересечений на 100 кв. км')
+
+(p1 / p2 / p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+```
+
+```{r densbox, fig.width=10, fig.height=5, fig.cap='Разброс относительных параметров геометрической детализации карты (плотность)'}
+p1 = ggplot(tabreg, mapping = aes(Scale, rpnt_density, fill = Scale)) +
+  geom_boxplot() +
+  ylab('на 100 кв. км') +
+  theme(legend.position = "none") +
+  ggtitle('Плотность точек')
+
+p2 = ggplot(tabreg, mapping = aes(Scale, robj_density, fill = Scale)) +
+  geom_boxplot() +
+  ylab('на 100 кв. км') +
+  theme(legend.position = "none") +
+  ggtitle('Плотность объектов')
+
+p3 = ggplot(tabreg, mapping = aes(Scale, rint_density, fill = Scale)) +
+  geom_boxplot() +
+  ylab('на 100 кв. км') +
+  ggtitle('Плотность пересечений')
+
+(p1 | p2 | p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+```
 
 
 
