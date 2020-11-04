@@ -165,6 +165,24 @@ Student test on mean equality:
 
 # Landscape complexity
 
+Copernicus Global Land Cover (CGLC) 100 m raster database
+[https://land.copernicus.eu/global/](https://land.copernicus.eu/global/)
+
+![:scale 100%](images/cglc.png)
+---
+
+# Landscape complexity
+
+Based on CGLC the following characteristics were calculated for each area:
+
+- Entropy-based measures as general estimators of complexity 
+
+- The percentage of area occupied by urban and agricultural (crops) land cover types as specific predictors of complexity conditioned by human role.
+
+> Currently the urban/crops ratio was used.
+
+![:scale 65%](images/cglc.png)
+
 ---
 
 # Grozny
