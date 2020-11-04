@@ -142,7 +142,9 @@ pntstats = pntdata %>%
             numpts = sum(NumberOfObj))
 
 
-stats = bind_cols(linstats, polstats, pntstats) %>% 
+stats = linstats %>% 
+  left_join(polstats, by = c('Region', 'Scale')) %>% 
+  left_join(pntstats, by = c('Region', 'Scale')) %>% 
   select(name = Region, Scale, pntnpts, linnpts, polnpts, 
          numlin, numpts, numpol, area, minarea, height, width) %>% 
   mutate(total = pntnpts + linnpts + polnpts,

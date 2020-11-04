@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css?family=Cuprum:400,400i,700,700i&subset=cyrillic');
+@import url('https://fonts.googleapis.com/css?family=Scada:400,400i,700,700i&subset=cyrillic');
+
+body { font-family: 'Scada', serif; font-size: 18pt; }
+p { font-size: 16pt; margin-top: 0;}
+ul { font-size: 16pt;}
+ol { font-size: 16pt; }
+h3 { margin-top: 0;}
+h1 {
+  font-family: 'Cuprum';
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.caption { font-size: 14pt; }
+.right-column { padding: 0px; }
+.left-column { font-size: 8pt; color: black;}
+.left-60 {
+  width: 60%;
+  float: left;
+}
+.right-40 {
+  width: 40%;
+  float: right;
+}
+.red { color: crimson; }
+.blue { color: steelblue; }
+.green { color: forestgreen; }
+.large { font-size: 19pt; }
+.small { font-size: 14pt;}
+.vsmall { font-size: 4pt; line-height: 0.5; line-height: 1.2; display: block;}
+
+.left-column>p{
+  font-size: 14pt;
+}
+table { font-size: 12pt; }
+img {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+MathJax { color: red; }

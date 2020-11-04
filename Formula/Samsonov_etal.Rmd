@@ -1,0 +1,320 @@
+---
+title: "Adjustment of geometric level of detail charactristics based on landuse/landcover
+  distribution"
+# subtitle: "NCG Symposium | Geocongres MRDH | ICA workshop 2020"
+author: "Timofey Samsonov, Olga Yakimova, Olga Guseva, Daniil Potemkin"
+institute: "Lomonosov MSU, Demidov YSU, Russia"
+date: "`r Sys.Date()`"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+      beforeInit: "macros.js"
+---
+
+# Motivation and background
+
+1. __Level of detail__ (LoD) concept is used to describe how close are spatial objects and their cartographic representations to the full description of reality.
+
+2. There are some successful attempts to formalize the LoD notion, for example in 3D city modeling (e.g. Biljecki et al., 2014, 2016).
+
+3. However, in general cartography the LoD remains a vaguely defined and weakly investigated concept, which prohibits its widespread application.
+    
+    - Ruas and Bianchin (2002) define LoD of a spatial database as a combination of the conceptual schema of the data, the semantic resolution, the geometric resolution, the geometric precision, and the granularity.
+    
+    - In a series of papers Touya and colleagues developed an approach to infer the LoD of OSM spatial features  based on multicriteria analysis (Touya & Brando-Excobar, 2013), inverted radical law (Touya & Reimer, 2015), and to define scale of a map using deep learning (Touya et al., 2020).
+    
+---
+
+# LoD research problems in cartography
+
+1. No general standard on describing the LoD of a digital map / spatial database.
+
+2. Existing formalizations are "backward", i.e. aimed at estimating the LoD of existing data. At the same time, "forward" LoD specifications are needed to generate maps/spatial data of desired detail.
+
+3. ...
+
+3. __Since real objects and landscapes differ in their complexity, so do their cartographic representations. Can we confuse more complex representations with more detailed representations?__
+
+The last research problem is investigated in our research.
+
+---
+
+# Hypothesis
+
+1. Geometric components of LoD such as feature density, resolution and granularity are affected not only by detail of representation but also by complexity of represented landscape.
+
+1. It is possible to erroneously judge cartographic representations of two landscapes with different complexities as two representations having different levels of detail.
+
+1. If we know how landscape complexity varies in space, we can reduce the bias in LoD estimation by normalizing geometric measures on predicted landscape complexity.
+
+1. Such normalization will lead to more robust LoD formalization suitable for comparing not only maps of the same territory, but also maps covering different areas.
+
+---
+
+# Experimental setup
+
+1. Select geographic areas in different landscapes.
+
+1. Extract corresponding data from multiple LoDs of cartographic database.
+
+1. Compute geometric measures of detail for each extracted fragment. 
+
+1. Check if the LoDs can be effectively distinguished based on statistical summaries of obtained measure values.
+
+1. Evaluate the landscape complexity for each fragment using the independent data source.
+
+1. Normalize each measure on its mean value and construct the regression model between normalized value (_excess_) and landscape complexity.
+
+1. Using the derived model, predict for each map fragment the excess of each measure: i.e. _how much higher or lower it is than the mean_.
+
+1. Divide each measure on its predicted excess.
+
+1. Check if the LoDs distinction improves based on excess-divided values.
+
+---
+
+# Geographic areas
+
+---
+
+# Experimental data
+
+---
+
+# Geometric measures
+
+---
+
+# LoD distinction (absolute measures)
+
+![:scale 100%](images/abs_bars11.png)
+
+---
+
+# LoD distinction (absolute measures)
+
+![:scale 100%](images/abs_bars12.png)
+
+---
+
+# LoD distinction (absolute measures)
+
+![:scale 100%](images/abs_bars13.png)
+
+---
+
+# LoD distinction (absolute measures)
+
+![:scale 100%](images/abs_boxes1.png)
+
+---
+
+# LoD distinction (absolute measures)
+
+Student test on mean equality:
+
+![:scale 75%](images/abs_p1.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars11.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars12.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars13.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_boxes1.png)
+
+---
+
+# LoD distinction (density measures)
+
+Student test on mean equality:
+
+![:scale 75%](images/density_p1.png)
+
+---
+
+# Landscape complexity
+
+---
+
+# Grozny
+
+![:scale 75%](images/grozny.png)
+
+---
+
+# Moscow
+
+![:scale 75%](images/moscow.png)
+
+---
+
+# Petrozavodsk
+
+![:scale 75%](images/petrozavodsk.png)
+
+---
+
+# Rostov
+
+![:scale 75%](images/rostov.png)
+
+---
+
+# Salekhard
+
+![:scale 75%](images/salekhard.png)
+
+---
+
+# Sharia
+
+![:scale 75%](images/sharia.png)
+
+---
+
+# Surgut
+
+![:scale 75%](images/surgut.png)
+---
+
+# Ufa
+
+![:scale 75%](images/ufa.png)
+---
+
+# Voronezh
+
+![:scale 75%](images/voronezh.png)
+
+---
+
+# Density vs. urban-crops models
+
+![:scale 100%](images/urban_crops_partial1.png)
+
+---
+
+# Density vs. urban-crops models
+
+![:scale 100%](images/urban_crops_partial2.png)
+
+---
+
+# Density vs. urban-crops models
+
+![:scale 100%](images/urban_crops_partial3.png)
+---
+
+# Density vs. urban-crops excess models
+
+![:scale 100%](images/urban_crops_full1.png)
+
+---
+
+# Density vs. urban-crops excess models
+
+![:scale 100%](images/urban_crops_full2.png)
+
+---
+
+# Density vs. urban-crops excess models
+
+![:scale 100%](images/urban_crops_full3.png)
+
+---
+
+# Density vs. urban-crops excess correlation
+
+![:scale 75%](images/urban_crops_corr_full.png)
+
+---
+
+# Density vs. urban-crops excess models
+
+Explored model is:
+
+$$d_i = \alpha_i + \beta_i \log(u + 1) + \gamma_i \log(c + 1),$$
+
+where $d_i$ — value of $i$-th measure excess, $u$ — urban ratio, $с$ — crops ratio.
+
+![:scale 80%](images/reg_coef.png)
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars11.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars21.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars12.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars22.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars13.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars23.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_boxes1.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_boxes2.png)
+
+---
+
+# LoD distinction (density measures)
+
+Student test on mean equality:
+
+![:scale 75%](images/density_p2.png)
+
+---
+
+# Conclusions

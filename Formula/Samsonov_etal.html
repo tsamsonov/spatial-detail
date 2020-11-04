@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Adjustment of geometric level of detail charactristics based on landuse/landcover distribution</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Timofey Samsonov, Olga Yakimova, Olga Guseva, Daniil Potemkin" />
+    <meta name="date" content="2020-11-05" />
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="libs/remark-css-0.0.1/default-fonts.css" rel="stylesheet" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Adjustment of geometric level of detail charactristics based on landuse/landcover distribution
+### Timofey Samsonov, Olga Yakimova, Olga Guseva, Daniil Potemkin
+### Lomonosov MSU, Demidov YSU, Russia
+### 2020-11-05
+
+---
+
+
+# Motivation and background
+
+1. __Level of detail__ (LoD) concept is used to describe how close are spatial objects and their cartographic representations to the full description of reality.
+
+2. There are some successful attempts to formalize the LoD notion, for example in 3D city modeling (e.g. Biljecki et al., 2014, 2016).
+
+3. However, in general cartography the LoD remains a vaguely defined and weakly investigated concept, which prohibits its widespread application.
+    
+    - Ruas and Bianchin (2002) define LoD of a spatial database as a combination of the conceptual schema of the data, the semantic resolution, the geometric resolution, the geometric precision, and the granularity.
+    
+    - In a series of papers Touya and colleagues developed an approach to infer the LoD of OSM spatial features  based on multicriteria analysis (Touya &amp; Brando-Excobar, 2013), inverted radical law (Touya &amp; Reimer, 2015), and to define scale of a map using deep learning (Touya et al., 2020).
+    
+---
+
+# LoD research problems in cartography
+
+1. No general standard on describing the LoD of a digital map / spatial database.
+
+2. Existing formalizations are "backward", i.e. aimed at estimating the LoD of existing data. At the same time, "forward" LoD specifications are needed to generate maps/spatial data of desired detail.
+
+3. ...
+
+3. __Since real objects and landscapes differ in their complexity, so do their cartographic representations. Can we confuse more complex representations with more detailed representations?__
+
+The last research problem is investigated in our research.
+
+---
+
+# Hypothesis
+
+1. Geometric components of LoD such as feature density, resolution and granularity are affected not only by detail of representation but also by complexity of represented landscape.
+
+1. It is possible to erroneously judge cartographic representations of two landscapes with different complexities as two representations having different levels of detail.
+
+1. If we know how landscape complexity varies in space, we can reduce the bias in LoD estimation by normalizing geometric measures on predicted landscape complexity.
+
+1. Such normalization will lead to more robust LoD formalization suitable for comparing not only maps of the same territory, but also maps covering different areas.
+
+---
+
+# Experimental setup
+
+1. Select geographic areas in different landscapes.
+
+1. Extract corresponding data from multiple LoDs of cartographic database.
+
+1. Compute geometric measures of detail for each extracted fragment. 
+
+1. Check if the LoDs can be effectively distinguished based on statistical summaries of obtained measure values.
+
+1. Evaluate the landscape complexity for each fragment using the independent data source.
+
+1. Normalize each measure on its mean value and construct the regression model between normalized value (_excess_) and landscape complexity.
+
+1. Using the derived model, predict for each map fragment the excess of each measure: i.e. _how much higher or lower it is than the mean_.
+
+1. Divide each measure on its predicted excess.
+
+1. Check if the LoDs distinction improves based on excess-divided values.
+
+---
+
+# Geographic areas
+
+---
+
+# Experimental data
+
+---
+
+# Geometric measures
+
+---
+
+# LoD distinction (absolute measures)
+
+![:scale 100%](images/abs_bars11.png)
+
+---
+
+# LoD distinction (absolute measures)
+
+![:scale 100%](images/abs_bars12.png)
+
+---
+
+# LoD distinction (absolute measures)
+
+![:scale 100%](images/abs_bars13.png)
+
+---
+
+# LoD distinction (absolute measures)
+
+![:scale 100%](images/abs_boxes1.png)
+
+---
+
+# LoD distinction (absolute measures)
+
+Student test on mean equality:
+
+![:scale 75%](images/abs_p1.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars11.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars12.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_bars13.png)
+
+---
+
+# LoD distinction (density measures)
+
+![:scale 100%](images/density_boxes1.png)
+
+---
+
+# LoD distinction (density measures)
+
+Student test on mean equality:
+
+![:scale 75%](images/density_p1.png)
+
+---
+
+# Landscape complexity
+
+---
+
+# Grozny
+
+![:scale 75%](images/grozny.png)
+
+---
+
+# Moscow
+
+![:scale 75%](images/moscow.png)
+
+---
+
+# Petrozavodsk
+
+![:scale 75%](images/petrozavodsk.png)
+
+---
+
+# Rostov
+
+![:scale 75%](images/rostov.png)
+
+---
+
+# Salekhard
+
+![:scale 75%](images/salekhard.png)
+
+---
+
+# Sharia
+
+![:scale 75%](images/sharia.png)
+
+---
+
+# Surgut
+
+![:scale 75%](images/surgut.png)
+---
+
+# Ufa
+
+![:scale 75%](images/ufa.png)
+---
+
+# Voronezh
+
+![:scale 75%](images/voronezh.png)
+
+---
+
+# Density vs. urban-crops models
+
+![:scale 100%](images/urban_crops_partial1.png)
+
+---
+
+# Density vs. urban-crops models
+
+![:scale 100%](images/urban_crops_partial2.png)
+
+---
+
+# Density vs. urban-crops models
+
+![:scale 100%](images/urban_crops_partial3.png)
+---
+
+# Density vs. urban-crops excess models
+
+![:scale 100%](images/urban_crops_full1.png)
+
+---
+
+# Density vs. urban-crops excess models
+
+![:scale 100%](images/urban_crops_full2.png)
+
+---
+
+# Density vs. urban-crops excess models
+
+![:scale 100%](images/urban_crops_full3.png)
+
+---
+
+# Density vs. urban-crops excess correlation
+
+![:scale 75%](images/urban_crops_corr_full.png)
+
+---
+
+# Density vs. urban-crops excess models
+
+Explored model is:
+
+`$$d_i = \alpha_i + \beta_i \log(u + 1) + \gamma_i \log(c + 1),$$`
+
+where `\(d_i\)` — value of `\(i\)`-th measure excess, `\(u\)` — urban ratio, `\(с\)` — crops ratio.
+
+![:scale 80%](images/reg_coef.png)
+
+---
+
+# LoD distinction
+
+---
+
+# Conclusions
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script src="macros.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
