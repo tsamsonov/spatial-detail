@@ -346,3 +346,11 @@ Student test on mean equality:
 ---
 
 # Conclusions
+
+1. Landscape heterogeneity results in significant differences of relative (density) measures of detail for one map scale.
+
+2. To estimate the landscape complexity and urban development, global land cover raster datasets can be used.
+
+3. The excess of density measures (how much the value for the current area is larger than the mean for all databse) can be predicted using the ratio of urban and crop types.
+
+4. Normalization of density measures on predicted excess values allows better distinction between LoDs on density measures. 
