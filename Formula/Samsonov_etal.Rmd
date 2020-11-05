@@ -1,7 +1,7 @@
 ---
-title: "Adjustment of geometric level of detail charactristics based on landuse/landcover
+title: "Adjustment of geometric level of detail characteristics based on landuse/landcover
   distribution"
-# subtitle: "NCG Symposium | Geocongres MRDH | ICA workshop 2020"
+subtitle: "23rd ICA Gen Workshop, Delft, Netherlands"
 author: "Timofey Samsonov, Olga Yakimova, Olga Guseva, Daniil Potemkin"
 institute: "Lomonosov MSU, Demidov YSU, Russia"
 date: "`r Sys.Date()`"
@@ -89,45 +89,47 @@ __Data:__
 
 - For each area the data from three levels of detail from cartographic database were extracted: 200k, 500k, 1000k
 
-- Currently  performed investigation  included  the  subset  of  topographic  data  which  characterizes  the  socio-economic infarstructure:  settlement  boundaries,  settlement  block  structure,  roads  and  railways, engineering networks and administrative boundaries
+- Currently  performed investigation  included  the  subset  of  topographic  data  which  characterizes  the  _socio-economic infrastructure_:  settlement  boundaries,  settlement  block  structure,  roads  and  railways, engineering networks and administrative boundaries
 
 __Detail measures__:
 
-- _Absolute_: mean bend width, mean bend height, minimum average object area
+- _Size_: mean bend width, mean bend height, average object area
 
 - _Density_: feature vertex density, feature density, intersection density
 
----
+> Density measures will be explored in current presentation
 
-# LoD distinction (absolute measures)
+<!-- --- -->
 
-![:scale 100%](images/abs_bars11.png)
+<!-- # LoD distinction (absolute measures) -->
 
----
+<!-- ![:scale 100%](images/abs_bars11.png) -->
 
-# LoD distinction (absolute measures)
+<!-- --- -->
 
-![:scale 100%](images/abs_bars12.png)
+<!-- # LoD distinction (absolute measures) -->
 
----
+<!-- ![:scale 100%](images/abs_bars12.png) -->
 
-# LoD distinction (absolute measures)
+<!-- --- -->
 
-![:scale 100%](images/abs_bars13.png)
+<!-- # LoD distinction (absolute measures) -->
 
----
+<!-- ![:scale 100%](images/abs_bars13.png) -->
 
-# LoD distinction (absolute measures)
+<!-- --- -->
 
-![:scale 100%](images/abs_boxes1.png)
+<!-- # LoD distinction (absolute measures) -->
 
----
+<!-- ![:scale 100%](images/abs_boxes1.png) -->
 
-# LoD distinction (absolute measures)
+<!-- --- -->
 
-Student test on mean equality:
+<!-- # LoD distinction (absolute measures) -->
 
-![:scale 75%](images/abs_p1.png)
+<!-- Student test on mean equality: -->
+
+<!-- ![:scale 75%](images/abs_p1.png) -->
 
 ---
 
@@ -177,7 +179,7 @@ Based on CGLC the following characteristics were calculated for each area:
 
 - Entropy-based measures as general estimators of complexity 
 
-- The percentage of area occupied by urban and agricultural (crops) land cover types as specific predictors of complexity conditioned by human role.
+- The percentage of area occupied by urban and agricultural (crops) land cover types as specific predictors of complexity conditioned by human activity.
 
 > Currently the urban/crops ratio was used.
 
@@ -187,57 +189,97 @@ Based on CGLC the following characteristics were calculated for each area:
 
 # Grozny
 
-![:scale 75%](images/grozny.png)
+```{r, echo = FALSE}
+metrics = dplyr::mutate_if(readxl::read_excel('data/metrics.xlsx'), is.numeric, round, digits = 2)
+knitr::kable(dplyr::filter(metrics, name == 'GROZNY'))
+```
+
+![:scale 65%](images/grozny.png)
+
 
 ---
 
 # Moscow
 
-![:scale 75%](images/moscow.png)
+```{r, echo = FALSE}
+knitr::kable(dplyr::filter(metrics, name == 'MOSCOW'))
+```
+
+![:scale 65%](images/moscow.png)
 
 ---
 
 # Petrozavodsk
 
-![:scale 75%](images/petrozavodsk.png)
+```{r, echo = FALSE}
+knitr::kable(dplyr::filter(metrics, name == 'PETROZAVODSK'))
+```
+
+![:scale 65%](images/petrozavodsk.png)
 
 ---
 
 # Rostov
 
-![:scale 75%](images/rostov.png)
+```{r, echo = FALSE}
+knitr::kable(dplyr::filter(metrics, name == 'ROSTOV-ON-DON'))
+```
+
+![:scale 65%](images/rostov.png)
 
 ---
 
 # Salekhard
 
-![:scale 75%](images/salekhard.png)
+```{r, echo = FALSE}
+knitr::kable(dplyr::filter(metrics, name == 'SALEKHARD'))
+```
+
+![:scale 65%](images/salekhard.png)
 
 ---
 
 # Sharia
 
-![:scale 75%](images/sharia.png)
+```{r, echo = FALSE}
+knitr::kable(dplyr::filter(metrics, name == 'SHARIA'))
+```
+
+![:scale 65%](images/sharia.png)
 
 ---
 
 # Surgut
 
-![:scale 75%](images/surgut.png)
+```{r, echo = FALSE}
+knitr::kable(dplyr::filter(metrics, name == 'SURGUT'))
+```
+
+![:scale 65%](images/surgut.png)
 ---
 
 # Ufa
 
-![:scale 75%](images/ufa.png)
+```{r, echo = FALSE}
+knitr::kable(dplyr::filter(metrics, name == 'UFA'))
+```
+
+![:scale 65%](images/ufa.png)
 ---
 
 # Voronezh
 
-![:scale 75%](images/voronezh.png)
+```{r, echo = FALSE}
+knitr::kable(dplyr::filter(metrics, name == 'VORONEZH'))
+```
+
+![:scale 65%](images/voronezh.png)
 
 ---
 
 # Density vs. urban-crops models
+
+These models show the dependence between density of vertices/objects/intersections and percentage occupied by urban/crop lands 
 
 ![:scale 100%](images/urban_crops_partial1.png)
 
@@ -245,30 +287,49 @@ Based on CGLC the following characteristics were calculated for each area:
 
 # Density vs. urban-crops models
 
+These models show the dependence between density of vertices/objects/intersections and percentage occupied by urban/crop lands 
+
 ![:scale 100%](images/urban_crops_partial2.png)
 
 ---
 
 # Density vs. urban-crops models
 
+These models show the dependence between density of vertices/objects/intersections and percentage occupied by urban/crop lands 
+
 ![:scale 100%](images/urban_crops_partial3.png)
 ---
 
 # Density vs. urban-crops excess models
 
-![:scale 100%](images/urban_crops_full1.png)
+__Excess__ of the $j$-th measure for $i$-th map fragment is calculated by dividing its value on the mean value for all map fragments:
+
+$$\hat m_{ij} = m_{ij} / m_j,~\text{where}~m_j = \frac{\sum_{i = 1}^{n} m_{ij}}{n}$$
+$m_{ij} = 2$ means that $j$-th measure for $i$-th map fragment is two times larger than the average for this LoD.
+
+![:scale 85%](images/urban_crops_full1.png)
 
 ---
 
 # Density vs. urban-crops excess models
 
-![:scale 100%](images/urban_crops_full2.png)
+__Excess__ of the $j$-th measure for $i$-th map fragment is calculated by dividing its value on the mean value for all map fragments:
+
+$$\hat m_{ij} = m_{ij} / m_j,~\text{where}~m_j = \frac{\sum_{i = 1}^{n} m_{ij}}{n}$$
+$m_{ij} = 2$ means that $j$-th measure for $i$-th map fragment is two times larger than the average for this LoD.
+
+![:scale 85%](images/urban_crops_full2.png)
 
 ---
 
 # Density vs. urban-crops excess models
 
-![:scale 100%](images/urban_crops_full3.png)
+__Excess__ of the $j$-th measure for $i$-th map fragment is calculated by dividing its value on the mean value for all map fragments:
+
+$$\hat m_{ij} = m_{ij} / m_j,~\text{where}~m_j = \frac{\sum_{i = 1}^{n} m_{ij}}{n}$$
+$m_{ij} = 2$ means that $j$-th measure for $i$-th map fragment is two times larger than the average for this LoD.
+
+![:scale 85%](images/urban_crops_full3.png)
 
 ---
 
@@ -291,11 +352,15 @@ where $d_i$ — value of $i$-th measure excess, $u$ — urban ratio, $с$ — cr
 
 # LoD distinction (density measures)
 
+__Raw measure__
+
 ![:scale 100%](images/density_bars11.png)
 
 ---
 
 # LoD distinction (density measures)
+
+__Normalized on predicted excess__
 
 ![:scale 100%](images/density_bars21.png)
 
@@ -303,11 +368,15 @@ where $d_i$ — value of $i$-th measure excess, $u$ — urban ratio, $с$ — cr
 
 # LoD distinction (density measures)
 
+__Raw measure__
+
 ![:scale 100%](images/density_bars12.png)
 
 ---
 
 # LoD distinction (density measures)
+
+__Normalized on predicted excess__
 
 ![:scale 100%](images/density_bars22.png)
 
@@ -315,11 +384,15 @@ where $d_i$ — value of $i$-th measure excess, $u$ — urban ratio, $с$ — cr
 
 # LoD distinction (density measures)
 
+__Raw measure__
+
 ![:scale 100%](images/density_bars13.png)
 
 ---
 
 # LoD distinction (density measures)
+
+__Normalized on predicted excess__
 
 ![:scale 100%](images/density_bars23.png)
 
@@ -347,10 +420,14 @@ Student test on mean equality:
 
 # Conclusions
 
-1. Landscape heterogeneity results in significant differences of relative (density) measures of detail for one map scale.
+1. Spatial heterogeneity of landscapes complicates estimation of map or spatial data LoD. Representations of more complex landscapes can be erroneously judged as more detailed representations.
 
-2. To estimate the landscape complexity and urban development, global land cover raster datasets can be used.
+2. External knowledge on landscape complexity is needed to reduce the bias in LoD estimation. Land use/land cover global datasets can be used to gain this knowledge.
 
-3. The excess of density measures (how much the value for the current area is larger than the mean for all databse) can be predicted using the ratio of urban and crop types.
+3. Percentage of area occupied by urban and agricultural land use/land cover types can be used as a proxy measure of landscape complexity induced by human activity (i.e. socio-economic map elements).
 
-4. Normalization of density measures on predicted excess values allows better distinction between LoDs on density measures. 
+4. Regression modeling of dependence between spatial density of vertices/objects/intersections and urban/crops ratio predicts excess of density over the mean LoD density.
+
+5. Normalization of density measures on predicted excess allows better distinction of LoDs from a statistical point of view. 
+
+6. Further research is needed to investigate the dependency of LoD measures on landscape complexity metrics and to predict the detail excess for the full set of map elements, including natural components.
