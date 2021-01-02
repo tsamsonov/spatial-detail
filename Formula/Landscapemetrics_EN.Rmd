@@ -85,27 +85,29 @@ regions = c('МОСКВА', 'ПЕТРОЗАВОДСК', 'САЛЕХАРД', 'У�
 read_data = function(file) {
   lapply(scales, function(scale) { 
     read_delim(paste0(file, scale, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
-    select(-ncol(.)) %>% 
+    select_if(function(x) !all(is.na(x))) %>% 
     mutate(Scale = scale,
-           Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(as.character(Scale))))
+           Region = region) %>% 
+    select(-region)
   }) %>% 
     bind_rows() %>% 
     filter(!stringr::str_detect(Name, 'clip')) %>% 
     mutate(Layer = stringr::str_sub(Name, 1, 3),
            Dim = stringr::str_sub(Name, 4, 6)) %>% 
-    filter(!(Layer %in% c('rlh', 'rlf', 'veg', 'hdr', 'hdt', 'hdc', 'for'))) %>% 
+    # filter(!(Layer %in% c('rlh', 'rlf', 'veg', 'hdr', 'hdt', 'hdc', 'for'))) %>% 
     mutate_all(~replace(., is.nan(.), 0)) %>% 
     group_by(Scale) %>% 
     complete(Region, Layer) %>% 
     ungroup() %>% 
-    mutate(missing = ifelse(is.na(Name), Layer, NA)) %>% 
-    filter(!(Layer %in% unique(missing))) %>% 
+    filter(!is.na(Name)) %>% 
+    # mutate(missing = ifelse(is.na(Name), Layer, NA)) %>% 
+    # filter(!(Layer %in% unique(missing))) %>% 
     distinct(Scale, Region, Layer, .keep_all = TRUE)
 }
 
-lindata = read_data('tables/resLines')
-pntdata = read_data('tables/resPoints')
-poldata = read_data('tables/resPolygons')
+lindata = read_data('tables/lines')
+pntdata = read_data('tables/points')
+poldata = read_data('tables/polygons')
 
 nuniq = length(unique(poldata$Region))
 
@@ -129,17 +131,17 @@ inters = read_delim('tables/topLines.txt', delim = ';', locale = locale(decimal_
 ```{r}
 # Подсчитаем суммарное количество социально-экономических точек
 linstats = lindata %>% 
-  filter(NumberOfObj > 0) %>% 
+  filter(Length > 0) %>% 
   group_by(Region, Scale) %>% 
   summarise(linnpts = sum(PointsNumber),
-            height = weighted.mean(AverageHeight, NumberOfObj),
-            width = weighted.mean(AverageWidth, NumberOfObj),
-            numlin = sum(NumberOfObj))
+            height = weighted.mean(AverageHeight, Length),
+            width = weighted.mean(AverageWidth, Length),
+            sumlin = sum(Length))
 polstats = poldata %>% 
-  filter(NumberOfObj > 0) %>% 
+  filter(TotalArea > 0) %>% 
   group_by(Region, Scale) %>% 
   summarise(polnpts = sum(PointsNumber),
-            numpol = sum(NumberOfObj),
+            sumpol = sum(TotalArea),
             minarea = min(AveArea),
             area = 1e-6 * sum(TotalArea * (Layer == 'adm')))
 pntstats = pntdata %>% 
