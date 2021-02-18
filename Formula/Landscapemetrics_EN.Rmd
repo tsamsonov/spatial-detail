@@ -1,8 +1,10 @@
 ---
-title: "Пространственная неоднородность относительных характеристик детализации карты как функция от степени хозяйственного освоения территории"
+title: "Приложение. Моделирование изменчивости плотностных показателей детализации карт в зависимости от внешних факторов"
 output:
-  bookdown::html_document2:
+  bookdown::word_document2:
     fig_caption: true
+  # bookdown::html_document2:
+  #   fig_caption: true
 ---
 
 ```{r setup, echo=FALSE, include=FALSE}
@@ -15,6 +17,7 @@ library(tidyverse)
 library(ggrepel)
 library(readxl)
 library(stars)
+library(purrr)
 ```
 
 ```{r}
@@ -28,34 +31,65 @@ read_lc = function(file) {
     select(type = 1) %>%
     mutate(typefac = factor(type, levels = types),
            urban = (type == 50),
-           crops = (type == 40)) %>% 
-    st_warp(crs = 32662)
+           crops = (type == 40))#%>% 
+    # st_warp(crs = 32662)
 }
 
-salekhard = read_lc('data/SALEKHARD.tif')
-moscow = read_lc('data/MOSCOW.tif')
-rostov = read_lc('data/ROSTOV.tif')
-ufa = read_lc('data/UFA.tif')
-petro = read_lc('data/PETRO.tif')
-surgut = read_lc('data/SURGUT.tif')
-sharia = read_lc('data/USTUG.tif')
-grozny = read_lc('data/GROZNY.tif')
-voronezh = read_lc('data/VORONEZH.tif')
+src = '/Volumes/Data/Spatial/LandCover/Copernicus/Fragments_prj'
 
-lands = lst(SALEKHARD = salekhard, MOSCOW = moscow, `ROSTOV-ON-DON` = rostov, 
-            UFA = ufa, PETROZAVODSK = petro, SHARIA = sharia, GROZNY = grozny, 
-            VORONEZH = voronezh, SURGUT = surgut)
+files = list.files(src)
+fragments = sapply(files, function(file) {
+  strsplit(file, '.', fixed = TRUE)[[1]][1]
+})
+paths = paste(src, files, sep = '/')
+
+lands = lapply(paths, read_lc) %>% 
+  set_names(fragments)
+
+
+# lands = lst(SALEKHARD = salekhard, MOSCOW = moscow, ROSTOV = rostov, 
+#             UFA = ufa, PETRO = petro, USTUG = sharia, GROZNY = grozny, 
+#             VORONEZH = voronezh, SURGUT = surgut)
 
 metrics = imap(lands, function(land, name) {
-  tibble(name = name,
+  tibble(region = name,
          ent = lsm_l_ent(land) %>% pull(value),
          condent = lsm_l_condent(land) %>% pull(value),
          joinent = lsm_l_joinent(land) %>% pull(value),
          mutinf = lsm_l_mutinf(land) %>% pull(value),
-         relmutinf = mutinf / ent,
+         relmutinf = lsm_l_relmutinf(land) %>% pull(value),
+         contag = lsm_l_contag(land) %>% pull(value),
+         dcad = lsm_l_dcad(land) %>% pull(value),
+         ed = lsm_l_ed(land) %>% pull(value),
+         lsi = lsm_l_lsi(land) %>% pull(value),
+         pafrac = lsm_l_pafrac(land) %>% pull(value),
+         pd = lsm_l_pafrac(land) %>% pull(value),
          urban = 100 * sum(land$urban, na.rm = TRUE) / length(land$urban),
          crops = 100 * sum(land$crops, na.rm = TRUE) / length(land$crops))
 }) %>% bind_rows()
+writexl::write_xlsx(metrics, 'metrics.xlsx')
+
+# minimax = tribble(
+#   ~region,    ~minimax,
+#   'GROZNY',    0.235,
+#   'MOSCOW',    0.333,
+#   'PETRO',     0.183,
+#   'ROSTOV',    0.266,
+#   'SALEKHARD', 0.353,
+#   'SURGUT',    0.326,
+#   'UFA',       0.284,
+#   'USTUG',     0.178,
+#   'VORONEZH',  0.292
+# )
+
+metrics = read_excel('metrics.xlsx')
+
+# metrics = read_excel('metrics.xlsx') %>% 
+#   left_join(minimax)
+
+# metrics2 = calculate_lsm(salekhard, what = 'landscape', progress = TRUE)
+
+
 ```
 
 ```{r}
@@ -77,314 +111,334 @@ plot_lc = function(lc) {
 ```
 
 ```{r}
-# Векторные данные
+files = list.files('tables/new/')
 
-scales = c(200, 500, 1000)
-regions = c('МОСКВА', 'ПЕТРОЗАВОДСК', 'САЛЕХАРД', 'УФА', 'РОСТОВ-ДОН')
+tab0 = lapply(files, function(file) {
+  region = strsplit(file, '_', fixed = TRUE)[[1]][1]
+  scale = strsplit(strsplit(file, '_', fixed = TRUE)[[1]][2], '.', fixed = TRUE)[[1]][1]
+  tab1 = read_delim(paste0('tables/new/', file), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+    mutate(scale = scale,
+           region = region)
+  
+  tab2 = read_delim(paste0('tables/intersections/', file), delim = ';', locale = locale(decimal_mark = ".")) %>% 
+    rename(inters = 2)
+  
+  left_join(tab1, tab2, by = 'layer')
+}) %>% 
+  bind_rows() %>% 
+  mutate(dim = ifelse(layer_type == 'Point', 'pnt', ifelse(layer_type == 'Line', 'lin', 'pol')),
+         layer = stringr::str_sub(layer, 1, 3),
+         number_of_points = ifelse(layer_type == 'Point', features_count, number_of_points),
+         scale = factor(scale, levels = c(200, 500, 1000))) %>% 
+  mutate_all(~replace(., is.nan(.), 0)) %>% 
+  complete(scale, region, layer, dim) %>% 
+  distinct(scale, region, layer, dim, .keep_all = TRUE)
 
-read_data = function(file) {
-  lapply(scales, function(scale) { 
-    read_delim(paste0(file, scale, '.txt'), delim = ';', locale = locale(decimal_mark = ".")) %>% 
-    select_if(function(x) !all(is.na(x))) %>% 
-    mutate(Scale = scale,
-           Region = region) %>% 
-    select(-region)
-  }) %>% 
-    bind_rows() %>% 
-    filter(!stringr::str_detect(Name, 'clip')) %>% 
-    mutate(Layer = stringr::str_sub(Name, 1, 3),
-           Dim = stringr::str_sub(Name, 4, 6)) %>% 
-    # filter(!(Layer %in% c('rlh', 'rlf', 'veg', 'hdr', 'hdt', 'hdc', 'for'))) %>% 
-    mutate_all(~replace(., is.nan(.), 0)) %>% 
-    group_by(Scale) %>% 
-    complete(Region, Layer) %>% 
-    ungroup() %>% 
-    filter(!is.na(Name)) %>% 
-    # mutate(missing = ifelse(is.na(Name), Layer, NA)) %>% 
-    # filter(!(Layer %in% unique(missing))) %>% 
-    distinct(Scale, Region, Layer, .keep_all = TRUE)
-}
+areas = tab0 %>% 
+  filter(layer == 'adm', dim == 'pol') %>% 
+  group_by(scale, region) %>% 
+  summarise(area = 1e-6 * max(total_polygons_area))
 
-lindata = read_data('tables/lines')
-pntdata = read_data('tables/points')
-poldata = read_data('tables/polygons')
+tab = tab0 %>% 
+  left_join(areas) %>% 
+  select(scale, region, layer, dim, layer_type, area, inters, field_count:average_length, total_bends_area)
 
-nuniq = length(unique(poldata$Region))
-
-inters = read_delim('tables/topLines.txt', delim = ';', locale = locale(decimal_mark = ".")) %>% 
-  select(-ncol(.)) %>% 
-  mutate(Scale = rep(scales, each = n()/3),
-         Region = stringr::str_sub(Region, 1, nchar(Region) - nchar(Scale)),
-         Region = ifelse(Region == 'РОСТОВ-ДОН', 'ROSTOV-ON-DON', Region),
-         Region = ifelse(Region == 'УСТЮГ', 'SHARIA', Region),
-         Region = ifelse(Region == 'ВОРОНЕЖ', 'VORONEZH', Region),
-         Region = ifelse(Region == 'МОСКВА', 'MOSCOW', Region),
-         Region = ifelse(Region == 'САЛЕХАРД', 'SALEKHARD', Region),
-         Region = ifelse(Region == 'СУРГУТ', 'SURGUT', Region),
-         Region = ifelse(Region == 'ПЕТРОЗАВОДСК', 'PETROZAVODSK', Region),
-         Region = ifelse(Region == 'ГРОЗНЫЙ', 'GROZNY', Region),
-         Region = ifelse(Region == 'УФА', 'UFA', Region)) %>% 
-  rename(name = Region,
-         intersections = Intersections)
+rivers = lapply(st_layers('rivers.gpkg')$name, function(lyr) {
+  tab = st_read('rivers.gpkg', lyr, quiet = TRUE) %>% 
+    mutate(length = units::set_units(st_length(.), NULL),
+           norm_length = length * DIS_AV_CMS,
+           norm_sqrt_length = length * sqrt(DIS_AV_CMS),
+           region = lyr) %>% 
+    group_by(region) %>% 
+    summarise(norm_length = sum(norm_length),
+              sqrt_length = sum(norm_sqrt_length)) %>% 
+    mutate(area = st_bbox(.) %>% st_as_sfc() %>% st_area() %>% units::set_units(NULL),
+           river_dens = 1000 * norm_length / area,
+           river_dens_sqrt = 1000 * sqrt_length / area) %>% 
+    select(region, river_dens, river_dens_sqrt) %>% 
+    st_drop_geometry()
+}) %>% bind_rows()
 ```
 
 ```{r}
-# Подсчитаем суммарное количество социально-экономических точек
-linstats = lindata %>% 
-  filter(Length > 0) %>% 
-  group_by(Region, Scale) %>% 
-  summarise(linnpts = sum(PointsNumber),
-            height = weighted.mean(AverageHeight, Length),
-            width = weighted.mean(AverageWidth, Length),
-            sumlin = sum(Length))
-polstats = poldata %>% 
-  filter(TotalArea > 0) %>% 
-  group_by(Region, Scale) %>% 
-  summarise(polnpts = sum(PointsNumber),
-            sumpol = sum(TotalArea),
-            minarea = min(AveArea),
-            area = 1e-6 * sum(TotalArea * (Layer == 'adm')))
-pntstats = pntdata %>% 
-  filter(NumberOfObj > 0) %>% 
-  group_by(Region, Scale) %>% 
-  summarise(pntnpts = sum(NumberOfObj),
-            numpts = sum(NumberOfObj))
+roads = read_excel('tables/road_dens.xlsx')
+tri = read_excel('tables/relief_tri.xlsx')
 
+monotonous = function(x) {
+  if (any(is.na(x)))
+    return(rep(NA, length(x)))
+  d = diff(x) >= 0
+  if (all(d) || all(!d))
+    return(x)
+  else
+    return(rep(NA, length(x)))
+}
 
-stats = linstats %>% 
-  left_join(polstats, by = c('Region', 'Scale')) %>% 
-  left_join(pntstats, by = c('Region', 'Scale')) %>% 
-  select(name = Region, Scale, pntnpts, linnpts, polnpts, 
-         numlin, numpts, numpol, area, minarea, height, width) %>% 
-  mutate(total = pntnpts + linnpts + polnpts,
-         num = numlin + numpts + numpol,
-         pnt_density = 100 * total / area,
-         obj_density = 100 * num / area) %>% 
+cleaned = tab %>% 
+  group_by(region, layer, dim) %>% 
+  arrange(scale) %>% 
+  mutate_at(names(.)[-c(1:6)], monotonous) %>% 
   ungroup() %>% 
-  mutate(name = ifelse(name == 'РОСТОВ-ДОН', 'ROSTOV-ON-DON', name),
-         name = ifelse(name == 'УСТЮГ', 'SHARIA', name),
-         name = ifelse(name == 'ВОРОНЕЖ', 'VORONEZH', name),
-         name = ifelse(name == 'МОСКВА', 'MOSCOW', name),
-         name = ifelse(name == 'САЛЕХАРД', 'SALEKHARD', name),
-         name = ifelse(name == 'СУРГУТ', 'SURGUT', name),
-         name = ifelse(name == 'ПЕТРОЗАВОДСК', 'PETROZAVODSK', name),
-         name = ifelse(name == 'ГРОЗНЫЙ', 'GROZNY', name),
-         name = ifelse(name == 'УФА', 'UFA', name))
+  arrange(region, layer, dim, scale)
 
-tab = stats %>% 
-  left_join(inters) %>% 
-  mutate(Scale = factor(Scale, levels = c(200, 500, 1000)),
-         int_density = 100 * intersections / area,
-         name_title = str_to_title(name)) %>% 
-  group_by(Scale) %>% 
-  mutate(rel_pnt_density = pnt_density / mean(pnt_density),
-         rel_obj_density = obj_density / mean(obj_density),
-         rel_int_density = int_density / mean(int_density)) %>% 
+stats = cleaned %>% 
+  filter(!(region %in% c('VORONEZH', 'YAROSLAVL'))) %>%
+  # filter(!(region %in% c('VORONEZH', 'YAROSLAVL')),
+  #        !(layer %in% c('hdr', 'hdc', 'hdp', 'hdd', 'hdt', 'rlf', 'rlh', 'rlg', 'veg', 'gnd', 'for'))) %>%
+  group_by(region, scale) %>% 
+  summarise(npts = sum(number_of_points, na.rm = TRUE),
+            nfeat = sum(features_count, na.rm = TRUE),
+            height = weighted.mean(average_height_of_bends, total_bends_area, na.rm = TRUE),
+            width = weighted.mean(average_length_of_bends_baseline, total_bends_area, na.rm = TRUE),
+            sumlin = sum(total_length, na.rm = TRUE),
+            sumpol = sum(total_polygons_area, na.rm = TRUE),
+            minarea = min(average_polygons_area, na.rm = TRUE),
+            area = first(area),
+            ninters = sum(inters, na.rm = TRUE)) %>% 
+  mutate(pnt_density = 100 * npts / area,
+         lin_density = 0.1 * sumlin / area,
+         obj_density = 100 * nfeat / area,
+         int_density = 100 * ninters / area,
+         name_title = str_to_title(region)) %>% 
+  group_by(scale) %>% 
+  mutate(rel_pnt_density = pnt_density / mean(pnt_density, na.rm = TRUE),
+         rel_lin_density = lin_density / mean(lin_density, na.rm = TRUE),
+         rel_obj_density = obj_density / mean(obj_density, na.rm = TRUE),
+         rel_int_density = int_density / mean(int_density, na.rm = TRUE)) %>% 
   ungroup() %>% 
-  left_join(metrics)
-  
+  left_join(metrics) %>% 
+  left_join(roads) %>% 
+  left_join(tri) %>% 
+  left_join(rivers, by = 'region')
+
+stats_phys = tab %>% 
+  filter(!(region %in% c('VORONEZH', 'YAROSLAVL')),
+         (layer %in% c('hdr', 'hdc', 'hdp', 'hdd', 'hdt', 'rlf', 'rlh', 'rlg', 'veg', 'gnd', 'for'))) %>%
+  group_by(region, scale) %>% 
+  summarise(npts = sum(number_of_points, na.rm = TRUE),
+            nfeat = sum(features_count, na.rm = TRUE),
+            height = weighted.mean(average_height_of_bends, total_bends_area, na.rm = TRUE),
+            width = weighted.mean(average_length_of_bends_baseline, total_bends_area, na.rm = TRUE),
+            sumlin = sum(total_length, na.rm = TRUE),
+            sumpol = sum(total_polygons_area, na.rm = TRUE),
+            minarea = min(average_polygons_area, na.rm = TRUE),
+            area = first(area),
+            ninters = sum(inters, na.rm = TRUE)) %>% 
+  mutate(pnt_density = 100 * npts / area,
+         lin_density = 0.1 * sumlin / area,
+         obj_density = 100 * nfeat / area,
+         int_density = 100 * ninters / area,
+         name_title = str_to_title(region)) %>% 
+  group_by(scale) %>% 
+  mutate(rel_pnt_density = pnt_density / mean(pnt_density, na.rm = TRUE),
+         rel_lin_density = lin_density / mean(lin_density, na.rm = TRUE),
+         rel_obj_density = obj_density / mean(obj_density, na.rm = TRUE),
+         rel_int_density = int_density / mean(int_density, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  left_join(metrics) %>% 
+  left_join(roads) %>% 
+  left_join(tri) %>% 
+  left_join(rivers, by = 'region')
 ```
 
-# Постановка задачи
+<!-- ```{r} -->
 
-> __Задача:__ Разработка метрик и программного обеспечения для оценки детализации множества пространственных объектов, а также детализации карты (базы пространственных данных) в целом на основе учета геометрических, семантических и символьных (применяемых при отображении) параметров. Оценка устойчивости и сопоставимости рассчитанных значений метрик для фрагментов данных, извлеченных из топографических карт одного и разных масштабов.
+<!-- # Подсчитаем суммарное количество социально-экономических точек -->
 
-В рамках работ 2019 г были проведены эксперименты с целью выработки понимания того, каким образом можно оценить детализацию карты в числовой форме. Детализация карт регламентируется только для топографических продуктов, однако явной числовой шкалы уровней детализации пока что не существует. С одной стороны, для каждого масштаба разработаны цензы отбора, устанавливающие по геометрическим и семантическим параметрам минимальный порог вхождения объектов на карту и модель их пространственной локализации (точка, линия, полигоны). С другой стороны, устанавливаются нормы отбора, регламентирующие максимально допустимое количество объектов на единицу площади. Наконец, ограничения визуального восприятия устанавливают графическую точность изображения порядка 0,1 мм, что в свою очередь регламентирует минимальный размер деталей (изгибов) в составе изображаемых линий. Эти три компоненты — цензы, нормы и графическая точность — в совокупности оказывают ключевое влияние на детализацию представления географической среды на карте.
+<!-- #   filter(Length > 0) %>%  -->
 
-Проведенные в 2018 г. эксперименты показали, что существуют индивидуальные характеристики объектов, такие как средняя площадь изгибов, которые систематически изменяются при переходе с одного масштаба (уровня детализации) на другой. Однако при переходе к оценке детализации однородных множеств пространственных объектов (слоёв), таких как объекты гидрографии или транспортные коммуникации, а также оценке детализации карты как совокупности этих множеств, необходимо учитывать также количество объектов на единицу площади и их топологические отношения. При уменьшении масштаба карты в связи с отбором количество объектов на единицу площади поврехности Земли уменьшается, что по логике должно свидетельствовать об уменьшении детализации представления. Соответствующим образом должно уменьшаться и количество пересечений между объектами внутри одного слоя и между слоями. Это утверждение, однако, справедливо при сравнении карт, покрывающих одну и ту же территорию в разных масштабах. Возникает вопрос, а можно ли на основе этих характеристик надежно определить уровень детализации карты? Исследованию этой надежности был посвящен настоящий раздел работ 2019 года.
+<!-- #   group_by(Region, Scale) %>%  -->
 
-# Анализ геометрических характеристик детализации карты
+<!-- #   summarise(linnpts = sum(PointsNumber), -->
 
-Для анализа возможных характеристик детализации карты мы воспользовались плотностными показателями, такими как как плотность объектов, плотность вершин, плотность пересечений между объектами, а также показателями размера, такими как средняя ширина и высота изгиба линии (применима как к линейным объектам, так и к площадным), а также минимальный средний размер объекта. Для выполнения эксперимента мы выбрали 9 фрагментов цифровых топографических карт масштабов 1:200 000, 1:500 000 и 1:1 000 000 с охватом порядка $200\times200~км$ в окрестностях городов Воронеж, Грозный, Москва, Петрозаводск, Ростов-на-Дону, Салехард, Сургут, Уфа и Шарья. 
+<!-- #             height = weighted.mean(AverageHeight, Length), -->
 
-Использовались данные по социально-экономическим объектам (населенные пункты и их структура, транспорт, инженерные коммуникации, административно-территориальное деление). Результаты по трем относительным (плотностным) геометрическим характеристикам представлены на Рис. \@ref(fig:denstats).
+<!-- #             width = weighted.mean(AverageWidth, Length), -->
 
-```{r denstats, fig.width=10, fig.height=14, fig.cap='Relative measures of geometric detail (density)'}
-p1 = ggplot(tab, mapping = aes(name, pnt_density, fill = Scale)) +
+<!-- #             sumlin = sum(Length)) -->
+
+<!-- # polstats = poldata %>%  -->
+
+<!-- #   filter(TotalArea > 0) %>%  -->
+
+<!-- #   group_by(Region, Scale) %>%  -->
+
+<!-- #   summarise(polnpts = sum(PointsNumber), -->
+
+<!-- #             sumpol = sum(TotalArea), -->
+
+<!-- #             minarea = min(AveArea), -->
+
+<!-- #             area = 1e-6 * sum(TotalArea * (Layer == 'adm'))) -->
+
+<!-- # pntstats = pntdata %>%  -->
+
+<!-- #   filter(PointsNumber > 0) %>%  -->
+
+<!-- #   group_by(Region, Scale) %>%  -->
+
+<!-- #   summarise(pntnpts = PointsNumber, -->
+
+<!-- #             numpts = PointsNumber) -->
+
+<!-- #  -->
+
+<!-- #  -->
+
+<!-- # stats = linstats %>%  -->
+
+<!-- #   left_join(polstats, by = c('Region', 'Scale')) %>%  -->
+
+<!-- #   left_join(pntstats, by = c('Region', 'Scale')) %>%  -->
+
+<!-- #   select(name = Region, Scale, pntnpts, linnpts, polnpts,  -->
+
+<!-- #          # numlin, numpts, numpol,  -->
+
+<!-- #          area, minarea, height, width) %>%  -->
+
+<!-- #   mutate(total = pntnpts + linnpts + polnpts, -->
+
+<!-- #          # num = numlin + numpts + numpol, -->
+
+<!-- #          # obj_density = 100 * num / area, -->
+
+<!-- #          pnt_density = 100 * total / area) %>%  -->
+
+<!-- #   ungroup() %>%  -->
+
+<!-- #   mutate(name = ifelse(name == 'РОСТОВ-ДОН', 'ROSTOV-ON-DON', name), -->
+
+<!-- #          name = ifelse(name == 'УСТЮГ', 'SHARIA', name), -->
+
+<!-- #          name = ifelse(name == 'ВОРОНЕЖ', 'VORONEZH', name), -->
+
+<!-- #          name = ifelse(name == 'МОСКВА', 'MOSCOW', name), -->
+
+<!-- #          name = ifelse(name == 'САЛЕХАРД', 'SALEKHARD', name), -->
+
+<!-- #          name = ifelse(name == 'СУРГУТ', 'SURGUT', name), -->
+
+<!-- #          name = ifelse(name == 'ПЕТРОЗАВОДСК', 'PETROZAVODSK', name), -->
+
+<!-- #          name = ifelse(name == 'ГРОЗНЫЙ', 'GROZNY', name), -->
+
+<!-- #          name = ifelse(name == 'УФА', 'UFA', name)) -->
+
+<!-- #  -->
+
+<!-- # tab = stats %>%  -->
+
+<!-- #   left_join(inters) %>%  -->
+
+<!-- #   mutate(Scale = factor(Scale, levels = c(200, 500, 1000)), -->
+
+<!-- #          int_density = 100 * intersections / area, -->
+
+<!-- #          name_title = str_to_title(name)) %>%  -->
+
+<!-- #   group_by(Scale) %>%  -->
+
+<!-- #   mutate(rel_pnt_density = pnt_density / mean(pnt_density, na.rm = TRUE), -->
+
+<!-- #          # rel_obj_density = obj_density / mean(obj_density), -->
+
+<!-- #          rel_int_density = int_density / mean(int_density, na.rm = TRUE)) %>%  -->
+
+<!-- #   ungroup() %>%  -->
+
+<!-- #   left_join(metrics) -->
+
+<!-- ``` -->
+
+Рассмотрим 4 стандартных плотностных метрики детализации по изучаемым фрагментам. Как видно, их разброс очень велик, что не позволяет надежно сказать, что наборы данных на разные территории взяты с одного и того же уровня детализации:
+
+```{r denstats, fig.width=10, fig.height=14, fig.cap='Плотностные метрики детализации'}
+p1 = ggplot(stats, mapping = aes(region, pnt_density, fill = scale)) +
   geom_col(position = "dodge") +
   coord_flip() +
   xlab(NULL) +
   guides(fill = guide_legend(reverse=T)) +
-  ggtitle('Vertex density per 100 sq. km')
+  ggtitle('Плотность вершин на 100 кв. км')
 
-p2 = ggplot(tab, mapping = aes(name, obj_density, fill = Scale)) +
+p2 = ggplot(stats, mapping = aes(region, lin_density, fill = scale)) +
   geom_col(position = "dodge") +
   coord_flip() +
   xlab(NULL) +
   guides(fill = guide_legend(reverse=T)) +
-  ggtitle('Object density per 100 sq. km')
+  ggtitle('Густота линий, км на 100 кв. км')
 
-p3 = ggplot(tab, mapping = aes(name, int_density, fill = Scale)) +
+p3 = ggplot(stats, mapping = aes(region, obj_density, fill = scale)) +
   geom_col(position = "dodge") +
   coord_flip() +
   xlab(NULL) +
   guides(fill = guide_legend(reverse=T)) +
-  ggtitle('Intersection density per 100 sq. km')
+  ggtitle('Плотность объектов на 100 кв. км')
 
-(p1 / p2 / p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+p4 = ggplot(stats, mapping = aes(region, int_density, fill = scale)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  xlab(NULL) +
+  guides(fill = guide_legend(reverse=T)) +
+  ggtitle('Плотность пересечений на 100 кв. км')
+
+(p1 / p2 / p3 / p4) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
 ```
 
-Анализ полученных результатов показывает, что плотностные характеристики не являются надежными индикаторами уровня детализации. Даже в пределах одного масштаба плотность размещения объектов может отличаться на порядки. Например, для участка Воронеж в масштабе 1:200 000 плотность объектов составляет $74,7$ на $100~км^2$, в то время как для участка Салехард всего лишь $1,9$. Подобный разброс наблюдается во всех масштабах и для всех исследуемых величин (плотность точек, объектов, пересечений), хотя следует отметить что с уменьшением масштаба разброс становится менее радикальным, что наглядно демонстрируют диаграммы размаха (Рис. \@ref(fig:densbox)).
-
-Выполнение теста Стьюдента на отличие средних между масштабными группами показывает приемлемую статистическую надежность этих отличий (Таблица \@ref(tab:abs-pvalues)), однако огромный разброс самих значений в пределах каждого масштаба вызывает сомнения в надежности использования данных характеристик.
-
-```{r densbox, fig.width=10, fig.height=5, fig.cap='Разброс относительных характеристик геометрической детализации карты (плотность)'}
-p1 = ggplot(tab, mapping = aes(Scale, pnt_density, fill = Scale)) +
+```{r densbox, fig.width=10, fig.height=5, fig.cap='Разброс относительных метрик детализации карты'}
+p1 = ggplot(stats, mapping = aes(scale, pnt_density, fill = scale)) +
   geom_boxplot() +
-  ylab('per 100 sq. km') +
+  ylab('на 100 кв. км') +
   theme(legend.position = "none") +
-  ggtitle('Vertex density')
+  ggtitle('Плотность вершин')
 
-p2 = ggplot(tab, mapping = aes(Scale, obj_density, fill = Scale)) +
+p2 = ggplot(stats, mapping = aes(scale, lin_density, fill = scale)) +
   geom_boxplot() +
-  ylab('per 100 sq. km') +
+  ylab('км на 100 кв. км') +
   theme(legend.position = "none") +
-  ggtitle('Object density')
+  ggtitle('Густота линий')
 
-p3 = ggplot(tab, mapping = aes(Scale, int_density, fill = Scale)) +
+p3 = ggplot(stats, mapping = aes(scale, obj_density, fill = scale)) +
   geom_boxplot() +
-  ylab('per 100 sq. km') +
-  ggtitle('Intersection density')
+  ylab('на 100 кв. км') +
+  theme(legend.position = "none") +
+  ggtitle('Плотность объектов')
 
-(p1 | p2 | p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+p4 = ggplot(stats, mapping = aes(scale, int_density, fill = scale)) +
+  geom_boxplot() +
+  ylab('на 100 кв. км') +
+  ggtitle('Плотность пересечений')
+
+(p1 | p2 | p3 | p4) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+# (p1 | p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
 ```
+
+Это подтверждается тестами Стьюдента на равенство средних, которые имеют невысокий уровень значимости:
 
 ```{r abs-pvalues}
 pvalues = tibble(
-  param = rep(c('pnt_density', 'obj_density', 'int_density'), each = 2),
-  scale1 = rep(c(200, 500), 3),
-  scale2 = rep(c(500, 1000), 3),
+  param = rep(c('pnt_density', 'lin_density', 'obj_density', 'int_density'), each = 2),
+  scale1 = rep(c(200, 500), 4),
+  scale2 = rep(c(500, 1000), 4),
   `p-value` = c(
-    t.test(tab %>% filter(Scale == 200) %>% pull(pnt_density), tab %>% filter(Scale == 500) %>% pull(pnt_density))$p.value,
-    t.test(tab %>% filter(Scale == 500) %>% pull(pnt_density), tab %>% filter(Scale == 1000) %>% pull(pnt_density))$p.value,
-    t.test(tab %>% filter(Scale == 200) %>% pull(obj_density), tab %>% filter(Scale == 500) %>% pull(obj_density))$p.value,
-    t.test(tab %>% filter(Scale == 500) %>% pull(obj_density), tab %>% filter(Scale == 1000) %>% pull(obj_density))$p.value,
-    t.test(tab %>% filter(Scale == 200) %>% pull(int_density), tab %>% filter(Scale == 500) %>% pull(int_density))$p.value,
-    t.test(tab %>% filter(Scale == 500) %>% pull(int_density), tab %>% filter(Scale == 1000) %>% pull(int_density))$p.value
+    t.test(stats %>% filter(scale == 200) %>% pull(pnt_density), stats %>% filter(scale == 500) %>% pull(pnt_density))$p.value,
+    t.test(stats %>% filter(scale == 500) %>% pull(pnt_density), stats %>% filter(scale == 1000) %>% pull(pnt_density))$p.value,
+    t.test(stats %>% filter(scale == 200) %>% pull(lin_density), stats %>% filter(scale == 500) %>% pull(lin_density))$p.value,
+    t.test(stats %>% filter(scale == 500) %>% pull(lin_density), stats %>% filter(scale == 1000) %>% pull(lin_density))$p.value,
+    t.test(stats %>% filter(scale == 200) %>% pull(obj_density), stats %>% filter(scale == 500) %>% pull(obj_density))$p.value,
+    t.test(stats %>% filter(scale == 500) %>% pull(obj_density), stats %>% filter(scale == 1000) %>% pull(obj_density))$p.value,
+    t.test(stats %>% filter(scale == 200) %>% pull(int_density), stats %>% filter(scale == 500) %>% pull(int_density))$p.value,
+    t.test(stats %>% filter(scale == 500) %>% pull(int_density), stats %>% filter(scale == 1000) %>% pull(int_density))$p.value
   )
 )
-knitr::kable(pvalues, caption = 'p-values for Student test on mean value equality for relative detail characteristics')
+knitr::kable(pvalues, caption = 'p-значения теста Стьюдента на равенство средних')
 ```
 
-Абсолютные характеристики детализации, представленные на Рис. \@ref(fig:sizestats), демонстрируют более устойчивое поведение, однако и в этом случае диапазон разброса значений может отличаться в несколько раз: для тех же участков Салехард и Воронеж в масштабе 1:200 000 отношения средних ширин и высот составляет $3.8$ и $2.7$ соответственно. Наиболее стабильный характер имеет минимальная средняя площадь полигонального объекта (Рис. \@ref(fig:sizestats)c), вычисленная как минимум из средних площадей объектов каждого слоя. Тем не менее, и по данной характеристике могут наблюдаться выбросы. Так, например, в масштабе 1:1 000 000 для участка Салехард минимальная площадь полигонального объекта в 136 раз больше следующего по размеру минимальной средней площади участка Сургут. 
+Рассмотрим как плотностные показатели детализации могут быть связаны с внешними факторами:
 
-```{r sizestats, fig.width=10, fig.height=14, fig.cap='Absolute values of geometric detail (dimensions)'}
-p4 = ggplot(tab, mapping = aes(name, width, fill = Scale)) +
-  geom_col(position = "dodge") +
-  coord_flip() +
-  # theme(legend.position = "none") +
-  xlab(NULL) +
-  ggtitle('Mean bend width')
-
-p5 = ggplot(tab, mapping = aes(name, height, fill = Scale)) +
-  geom_col(position = "dodge") +
-  coord_flip() +
-  # theme(legend.position = "none") +
-  xlab(NULL) +
-  ggtitle('Mean bend height')
-
-p6 = ggplot(tab, mapping = aes(name, minarea, fill = Scale)) +
-  geom_col(position = "dodge") +
-  coord_flip() +
-  scale_y_log10() +
-  xlab(NULL) +
-  ggtitle('Minumum average object area')
-
-(p4 / p5 / p6) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
-```
-
-В целом более качественная разделимость уровней детализации по абсолютным характеристикам в сравнении с относительными подтверждается диаграммами размаха, представленными на Рис. \@ref(fig:sizebox). Тем не менее, статистическая проверка разделимости уровней детализации по данным характеристикам показывает, что и здесь не во всех случаях наблюдаются значимые отличия в средних (Таблица \@ref(tab:abs-pvalues)).
-
-```{r sizebox, fig.width=10, fig.height=5, fig.cap='Разброс абсолютных характеристик геометрической детализации карты (плотность)'}
-p4 = ggplot(tab, mapping = aes(Scale, width, fill = Scale)) +
-  geom_boxplot() +
-  ylab('км') +
-  theme(legend.position = "none") +
-  ggtitle('Mean bend width')
-
-p5 = ggplot(tab, mapping = aes(Scale, height, fill = Scale)) +
-  geom_boxplot() +
-  ylab('км') +
-  theme(legend.position = "none") +
-  ggtitle('Mean bend height')
-
-p6 = ggplot(tab, mapping = aes(Scale, minarea, fill = Scale)) +
-  geom_boxplot() +
-  scale_y_log10() +
-  ylab('кв. км') +
-  ggtitle('Minimum average object area')
-
-(p4 | p5 | p6) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
-```
-
-```{r rel-pvalues}
-pvalues = tibble(
-  param = rep(c('width', 'height', 'minarea'), each = 2),
-  scale1 = rep(c(200, 500), 3),
-  scale2 = rep(c(500, 1000), 3),
-  `p-value` = c(
-    t.test(tab %>% filter(Scale == 200) %>% pull(width), tab %>% filter(Scale == 500) %>% pull(width))$p.value,
-    t.test(tab %>% filter(Scale == 500) %>% pull(width), tab %>% filter(Scale == 1000) %>% pull(width))$p.value,
-    t.test(tab %>% filter(Scale == 200) %>% pull(height), tab %>% filter(Scale == 500) %>% pull(height))$p.value,
-    t.test(tab %>% filter(Scale == 500) %>% pull(height), tab %>% filter(Scale == 1000) %>% pull(height))$p.value,
-    t.test(log(tab %>% filter(Scale == 200) %>% pull(minarea)), log(tab %>% filter(Scale == 500) %>% pull(minarea)))$p.value,
-    t.test(log(tab %>% filter(Scale == 500) %>% pull(minarea)), log(tab %>% filter(Scale == 1000) %>% pull(minarea)))$p.value
-  )
-)
-knitr::kable(pvalues, caption = 'p-values of Student test on equality of mean values for absolute geometric detail characteristics')
-```
-
-# Анализ зависимости плотностных характеристик детализации от уровня хозяйственной освоенности территории
-
-Значительный разброс относительных характеристик геометрической детализации обусловлен тем, что территории характеризуются неодинаковой хозяйственной освоенностью и сложностью ландшафта. Если первая особенность влияет на плотность изображения социально-экономических объектов (населённые пункты, транспорт, инженерные коммуникации, промышленные сооружения и т.д.) на топографических картах, то вторая компонента обуславливает плотность изображения природных элементов (рельеф, гидрография, растительность, грунты).
-
-Заметим, что плотность объектов на карте влияет на надёжность оценок детализации, получаемых на основе анализа абсолютных характеристик детализации: при малом количестве и разнообразии объектов оценки размеров будут несостоятельными. Так, например, значительный выброс оценки минимальной средней площади для участка Салехард в масштабе 1:1 000 000 связан с тем, что на этом участке наименее крупными полигональными социально-экономическими объектами являются муниципальные районы, имеющие огромную площадь.
-
-В данной части исследования мы провели эксперимент направленный на выяснение зависимости между уровнем хозяйственной освоенности территории и плотностью размещения социально-экономических объектов на картах. Для определения уровня хозяйственной освоенности мы использовали независимый источник информации — растровый набор данных Copernicus Global Land Cover (https://land.copernicus.eu/global/products/lc), имеющий глобальное покрытие и размер ячейки 100 м. Для каждой ячейки этого растра известна доля одного из 22 типов земельного покрова, из которых два — урбанизированные территории и с/х земли — можно отнести к элементам хозяйственного освоения территории. 
-
-Карты земельного покрова для исследованных участков показаны на Рис. \@ref(fig:sal) — \@ref(fig:vor)
-
-```{r sal, fig.cap='Типы земельного покрова по данным Copernicus Global Land Cover (участок Салехард)'}
-plot_lc(salekhard)
-```
-
-```{r mos, fig.cap='Типы земельного покрова по данным Copernicus Global Land Cover (участок Москва)'}
-plot_lc(moscow)
-```
-
-```{r ros, fig.cap='Типы земельного покрова по данным Copernicus Global Land Cover (участок Ростов-на-Дону)'}
-plot_lc(rostov)
-```
-
-```{r ufa, fig.cap='Типы земельного покрова по данным Copernicus Global Land Cover (участок Уфа)'}
-plot_lc(ufa)
-```
-
-```{r pet, fig.cap='Типы земельного покрова по данным Copernicus Global Land Cover (участок Петрозаводск)'}
-plot_lc(petro)
-```
-
-```{r sur, fig.cap='Типы земельного покрова по данным Copernicus Global Land Cover (участок Сургут)'}
-plot_lc(surgut)
-```
-
-```{r sha, fig.cap='Типы земельного покрова по данным Copernicus Global Land Cover (участок Шарья)'}
-plot_lc(sharia)
-```
-
-```{r gro, fig.cap='Типы земельного покрова по данным Copernicus Global Land Cover (участок Грозный)'}
-plot_lc(grozny)
-```
-
-```{r vor, fig.cap='Типы земельного покрова по данным Copernicus Global Land Cover (участок Воронеж)'}
-plot_lc(voronezh)
-```
-
-Нами был проведен корреляционный и регрессионный анализ зависимости плотностных характеристик детализации социально-экономических элементов топографических карт от уровня хозяйственной освоенности территории. Диаграммы рассеяния между плотностью точек/объектов/пересечений и долей урбанизированных территорий/сельхозугодий представлены на Рис. \@ref(fig:scatt). Дополнительно на них нанесена линия регрессии с доверительными интервалами вероятности 0.95. 
-
-```{r scatt, fig.width=12, fig.height=16, fig.cap='Зависимость плотностных показателей детализации социально-экономических элементов карт от уровня компонент хозяйственной освоенности территории: a-c) — урбанизированные территории, d-f) — сельхозугодья'}
+```{r, fig.width=12, fig.height=12, fig.cap='Зависимость плотностных показателей детализации от доли урбанизированных (a) и сльскохозяйственных (b) территорий, а также плотности транспортной (c) и гидрографической (d) сети'}
 plot_lm = function(var1, var2, legend = TRUE, xlabel = TRUE, ylabel = TRUE) {
-  g = ggplot(tab, mapping = aes_string(var1, var2, group = 'Scale', color = 'Scale', label = 'name_title')) +
+  g = ggplot(stats, mapping = aes_string(var1, var2, group = 'scale', color = 'scale', label = 'name_title')) +
     geom_point() +
     geom_smooth(method = 'lm') +
     geom_text_repel(
@@ -404,45 +458,114 @@ plot_lm = function(var1, var2, legend = TRUE, xlabel = TRUE, ylabel = TRUE) {
 }
 
 p1 = plot_lm('urban', 'pnt_density', F)
-p2 = plot_lm('urban', 'obj_density', F)
-p3 = plot_lm('urban', 'int_density', F)
-p4 = plot_lm('crops', 'pnt_density', T, T, F)
-p5 = plot_lm('crops', 'obj_density', T, T, F)
-p6 = plot_lm('crops', 'int_density', T, T, F)
+p2 = plot_lm('urban', 'lin_density', F)
+p3 = plot_lm('urban', 'obj_density', F)
+p4 = plot_lm('urban', 'int_density', F)
+p5 = plot_lm('crops', 'pnt_density', F, T, F)
+p6 = plot_lm('crops', 'lin_density', F, T, F)
+p7 = plot_lm('crops', 'obj_density', F, T, F)
+p8 = plot_lm('crops', 'int_density', F, T, F)
+p9 = plot_lm('dens', 'pnt_density', F, T, F)
+p10 = plot_lm('dens', 'lin_density', F, T, F)
+p11 = plot_lm('dens', 'obj_density', F, T, F)
+p12 = plot_lm('dens', 'int_density', F, T, F)
+p13 = plot_lm('river_dens', 'lin_density', F, T, F)
+p14 = plot_lm('river_dens', 'pnt_density', T, T, F)
+p15 = plot_lm('river_dens', 'obj_density', T, T, F)
+p16 = plot_lm('river_dens', 'int_density', T, T, F)
 
-((p1 / p2 / p3) | (p4 / p5 / p6)) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+((p1 / p2 / p3 / p4) | (p5 / p6 / p7 / p8) | (p9 / p10 / p11 / p12) | (p13 / p14 / p15 / p16)) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
 ```
 
-По результатам анализа была обнаружена статистически значимая (p < 0.05) зависимость между __логарифмом__ процентной доли хозяйственно освоенных земель и плотностью пространственных объектов на карте. Результаты представлены в виде корреляционных матриц, сгруппированных по масштабам на Рис. \@ref(fig:corrmat). В масштабе 1:200 000 оказалась статистически не значима зависимость между плотностью пересечений и урбанизированностью, а в масштабе 1:500 000 — зависимости между плотностью точек, плотностью объектов и также урбанизированностью. Также можно обратить внимание на то, что в более крупных масштабах доля сельскохозяйственных территорий начинает играть более значимую роль в повышении плотности изображения, что может быть связано с подробным показом подъездных проселочных дорог. При этом стабильно высоким оказывается синтетический показатель `urban_crops`, получаемый путем суммирования логарифма доли урбанизированных территорий и логарифма доли сельхозугодий (к обоим долям перед логарифмированием прибавляется единица, чтобы избежать отрицательных и бесконечных величин там где доля составляет менее 1%).
+```{r, fig.width=12, fig.height=12, fig.cap='Зависимость плотностных показателей детализации от расчлененности рельефа (a), а также индексов сложности ландшафта: энтропия (b), CONTAG (с), PAFRAC (d)'}
+plot_lm = function(var1, var2, legend = TRUE, xlabel = TRUE, ylabel = TRUE) {
+  g = ggplot(stats, mapping = aes_string(var1, var2, group = 'scale', color = 'scale', label = 'name_title')) +
+    geom_point() +
+    geom_smooth(method = 'lm') +
+    geom_text_repel(
+      segment.size  = 0.3,
+      segment.color = "grey50",
+      direction     = "y",
+      hjust         = 0
+    )
+    # scale_x_log10()
+  if(!legend)
+    g = g + theme(legend.position = "none")
+  if(!xlabel)
+    g = g + xlab(NULL)
+  if(!ylabel)
+    g = g + ylab(NULL)
+  return(g)
+}
 
-```{r corrmat, fig.width = 6, fig.height = 16, fig.cap='Корреляционные матрицы между долей хозяйственно освоенных земель и относительными (плотностными) параметрами детализации карты'}
-p1 = ggstatsplot::ggcorrmat(
-  data = mutate(filter(tab, Scale == 200), urban = log(urban + 1), crops = log(crops + 1), urban_crops = urban + crops),
-  cor.vars = c(urban, crops, urban_crops, pnt_density, obj_density, int_density),
-  title = '1:200 000'
-)
+p1 = plot_lm('tri', 'pnt_density', F)
+p2 = plot_lm('tri', 'lin_density', F)
+p3 = plot_lm('tri', 'obj_density', F)
+p4 = plot_lm('tri', 'int_density', F)
+p5 = plot_lm('ent', 'pnt_density', F, T, F)
+p6 = plot_lm('ent', 'lin_density', F, T, F)
+p7 = plot_lm('ent', 'obj_density', F, T, F)
+p8 = plot_lm('ent', 'int_density', F, T, F)
+p9 = plot_lm('contag', 'pnt_density', F, T, F)
+p10 = plot_lm('contag', 'lin_density', F, T, F)
+p11 = plot_lm('contag', 'obj_density', F, T, F)
+p12 = plot_lm('contag', 'int_density', F, T, F)
+p13 = plot_lm('pafrac', 'pnt_density', T, T, F)
+p14 = plot_lm('pafrac', 'lin_density', T, T, F)
+p15 = plot_lm('pafrac', 'obj_density', T, T, F)
+p16 = plot_lm('pafrac', 'int_density', T, T, F)
 
-p2 = ggstatsplot::ggcorrmat(
-  data = mutate(filter(tab, Scale == 500), urban = log(urban + 1), crops = log(crops + 1), urban_crops = urban + crops),
-  cor.vars = c(urban, crops, urban_crops, pnt_density, obj_density, int_density),
-  title = '1:500 000'
-)
-
-p3 = ggstatsplot::ggcorrmat(
-  data = mutate(filter(tab, Scale == 1000), urban = log(urban + 1), crops = log(crops + 1), urban_crops = urban + crops),
-  cor.vars = c(urban, crops, urban_crops, pnt_density, obj_density, int_density),
-  title = '1:1 000 000'
-)
-
-(p1 / p2 / p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+((p1 / p2 / p3 / p4) | (p5 / p6 / p7 / p8) | (p9 / p10 / p11 / p12) | (p13 / p14 / p15 / p16)) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
 ```
 
-Построенные графики показывают что характер отношения между плотностными характеристиками и уровнем хозяйственного освоения зависит от масштаба карты. Характер кривой определяется средним значением нагрузки. Чем она выше (масштаб карты крупнее), тем сильнее уклон кривой. Поскольку нашей целью является нахождение закономерности, не зависящей от масштаба карты, для дальнейшего анализа мы перешли к значениям показателей, нормированных на среднее по всем регионам для соответствующего масштаба. Результирующий график с линией регрессии, построенной уже для данных по всем масштабам, представлен на Рис. \@ref(fig:scattnorm), а соответствующая корреляционная матрица — на Рис. \@ref(fig:corrmatall). Как видно, для общей выборки комплексный показатель, сочетающий долю урбанизированных территорий и долю с/х земель, обладает более высоким коэффициентом корреляции, нежели каждый тип земель по-отдельности.
+<!-- ```{r corrmat, fig.width = 6, fig.height = 16, fig.cap='Корреляционные матрицы между долей хозяйственно освоенных земель и относительными (плотностными) параметрами детализации карты'} -->
 
-```{r scattnorm, fig.width=12, fig.height=16, fig.cap='Зависимость нормированных на среднее плотностных показателей детализации социально-экономических элементов карт всех масштабов от уровня компонент хозяйственной освоенности территории: a-c) — урбанизированные территории, d-f) — сельхозугодья'}
+<!-- p1 = ggstatsplot::ggcorrmat( -->
+
+<!--   data = mutate(filter(stats, scale == 200), dens = log(dens + 1), river_dens = log(river_dens + 1), urban = log(urban + 1), crops = log(crops + 1), urban_crops_dens = urban + crops + dens), -->
+
+<!--   cor.vars = c(urban, crops, urban_crops_dens, dens, river_dens, tri, ent, contag, pafrac, pnt_density, lin_density, obj_density, int_density), -->
+
+<!--   # cor.vars = c(urban, crops, urban_crops, pnt_density, int_density), -->
+
+<!--   title = '1:200 000' -->
+
+<!-- ) -->
+
+<!-- p2 = ggstatsplot::ggcorrmat( -->
+
+<!--   data = mutate(filter(stats, scale == 500), dens = log(dens + 1), river_dens = log(river_dens + 1), urban = log(urban + 1), crops = log(crops + 1), urban_crops_dens = urban + crops + dens), -->
+
+<!--   cor.vars = c(urban, crops, urban_crops_dens, dens, river_dens, tri, ent, contag, pafrac, pnt_density, lin_density, obj_density, int_density), -->
+
+<!--   # cor.vars = c(urban, crops, urban_crops, pnt_density, int_density), -->
+
+<!--   title = '1:500 000' -->
+
+<!-- ) -->
+
+<!-- p3 = ggstatsplot::ggcorrmat( -->
+
+<!--   data = mutate(filter(stats, scale == 1000), dens = log(dens + 1), river_dens = log(river_dens + 1), urban = log(urban + 1), crops = log(crops + 1), urban_crops_dens = urban + crops + dens), -->
+
+<!--   cor.vars = c(urban, crops, urban_crops_dens, dens, river_dens, tri, ent, contag, pafrac, pnt_density, lin_density, obj_density, int_density), -->
+
+<!--   # cor.vars = c(urban, crops, urban_crops, pnt_density, int_density), -->
+
+<!--   title = '1:1 000 000' -->
+
+<!-- ) -->
+
+<!-- (p1 / p2 / p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')') -->
+
+<!-- ``` -->
+
+Видно, что энтропийные метрики обладают очень широкими доверительными интервалами и ненадежны в использовании. Для целей дальнейшего анализа разделим каждую метрику на среднюю величину по всем участкам и объединим их на одном графике:
+
+```{r scattnorm, fig.width=12, fig.height=12, fig.cap='Зависимость нормированных плотностных показателей детализации от доли урбанизированных (a) и сельскохозяйственных (b) территорий, а также плотности транспортной (c) и гидрографической (d) сети'}
 plot_lm2 = function(var1, var2, legend = TRUE, xlabel = TRUE, ylabel = TRUE) {
-  g = ggplot(tab, mapping = aes_string(var1, var2, label = 'name_title')) +
-    geom_point(mapping = aes(color = Scale)) +
+  g = ggplot(stats, mapping = aes_string(var1, var2, label = 'name_title')) +
+    geom_point(mapping = aes(color = scale)) +
     geom_smooth(method = 'lm') +
     geom_text_repel(
       segment.size  = 0.3,
@@ -461,56 +584,78 @@ plot_lm2 = function(var1, var2, legend = TRUE, xlabel = TRUE, ylabel = TRUE) {
 }
 
 p1 = plot_lm2('urban', 'rel_pnt_density', F)
-p2 = plot_lm2('urban', 'rel_obj_density', F)
-p3 = plot_lm2('urban', 'rel_int_density', F)
-p4 = plot_lm2('crops', 'rel_pnt_density', T, T, F)
-p5 = plot_lm2('crops', 'rel_obj_density', T, T, F)
-p6 = plot_lm2('crops', 'rel_int_density', T, T, F)
+p2 = plot_lm2('urban', 'rel_lin_density', F)
+p3 = plot_lm2('urban', 'rel_obj_density', F)
+p4 = plot_lm2('urban', 'rel_int_density', F)
+p5 = plot_lm2('crops', 'rel_pnt_density', F, T, F)
+p6 = plot_lm2('crops', 'rel_lin_density', F, T, F)
+p7 = plot_lm2('crops', 'rel_obj_density', F, T, F)
+p8 = plot_lm2('crops', 'rel_int_density', F, T, F)
+p9 = plot_lm2('dens', 'rel_pnt_density', F, T, F)
+p10 = plot_lm2('dens', 'rel_lin_density', F, T, F)
+p11 = plot_lm2('dens', 'rel_obj_density', F, T, F)
+p12 = plot_lm2('dens', 'rel_int_density', F, T, F)
+p13 = plot_lm2('river_dens', 'rel_lin_density', T, T, F)
+p14 = plot_lm2('river_dens', 'rel_pnt_density', T, T, F)
+p15 = plot_lm2('river_dens', 'rel_obj_density', T, T, F)
+p16 = plot_lm2('river_dens', 'rel_int_density', T, T, F)
 
-((p1 / p2 / p3) | (p4 / p5 / p6)) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+((p1 / p2 / p3 / p4) | (p5 / p6 / p7 / p8) | (p9 / p10 / p11 / p12) | (p13 / p14 / p15 / p16)) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
 ```
 
+Рассчитаем корреляции между нормированными плотностными показателями детализации и внешними факторами:
 
-```{r corrmatall, fig.width = 6, fig.height = 6, fig.cap='Корреляционная матрица между долей хозяйственно освоенных земель и относительными (плотностными) параметрами детализации карты, нормированными на среднее (по всем масштабам)'}
+```{r corrmatall, fig.width = 12, fig.height = 12, fig.cap='Корреляционная матрица между факторами и плотностными показателями детализации'}
 ggstatsplot::ggcorrmat(
-  data = mutate(tab, urban = log(urban + 1), crops = log(crops + 1), urban_crops = urban + crops),
-  cor.vars = c(urban, crops, urban_crops, rel_pnt_density, rel_obj_density, rel_int_density),
+  data = mutate(stats, dens = log(dens + 1), river_dens = log(river_dens + 1), 
+                urban = log(urban + 1), crops = log(crops + 1), urban_crops_dens = urban + crops + dens),
+  # cor.vars = c(urban, crops, urban_crops, rel_pnt_density, rel_int_density)
+  cor.vars = c(urban, crops, dens, river_dens, tri, ent, contag, pafrac, urban_crops_dens, 
+               rel_pnt_density, rel_lin_density, rel_obj_density, rel_int_density),
 )
 ```
 
+Как видно, многие из них (зачеркнутые крестом), статистически не значимы при уровне 0,05. Однако, если проблема в небольшом объеме выборки, в перспективе эта проблема может быть решена путем увеличения количества участков.
 
-Далее мы нашли коэффициенты линейной регрессии следующего вида:
-$$d_i = \alpha_i + \beta_i \log(u + 1) + \gamma_i \log(c + 1),$$
-где $d_i$ — величина $i$-й нормированной на среднее по масштабу метрики детализации, $u$ — доля урбанизированных территорий, $с$ — доля сельскохозяйственных угодий. Результаты регрессионного анализа приведены в Таблице \@ref(tab:coef). Коэффициенты, полученные по данным со всех масштабов, помечены как `NA`.
+Далее найдем коэффициенты линейной регрессии следующего вида: $$d_i = A_i + B_i \log(u + 1) + C_i \log(c + 1) + D_i \log(r + 1) + E_i \log(h + 1) + G_i \log(t + 1),$$ где $d_i$ --- величина $i$-й нормированной на среднее по масштабу метрики детализации, $u$ --- доля урбанизированных территорий, $с$ --- доля сельскохозяйственных угодий, $r$ --- густота дорожной сети, $h$ --- густота речной сети, $t$ --- индекс расчлененности рельефа. Результаты регрессионного анализа приведены в Таблице \@ref(tab:coef). Коэффициенты, полученные по данным со всех масштабов, помечены как `NA`.
 
 ```{r coef}
-fields = c('rel_pnt_density', 'rel_obj_density', 'rel_int_density')
+fields = c('rel_pnt_density', 'rel_lin_density', 'rel_obj_density', 'rel_int_density')
+# fields = c('rel_pnt_density', 'rel_int_density')
+
+scales = c(200, 500, 1000)
 
 scales2 = c(200, 500, 1000, NA)
 
-lms = map(scales2, function(scale) {
-  corrtab = tab
-  if(!is.na(scale))
-    corrtab = filter(tab, Scale == scale)
+
+lms = map(scales2, function(s) {
+  corrtab = stats
+  if(!is.na(s))
+    corrtab = filter(stats, scale == s)
   
   map(fields, function(field) {
     var = pull(corrtab, field)
-    beta = log(corrtab$urban + 1)
-    gamma = log(corrtab$crops + 1)
-    lm(var ~ beta + gamma) %>% 
+    B = log(corrtab$urban + 1)
+    C = log(corrtab$crops + 1)
+    D = log(corrtab$dens + 1)
+    E = log(corrtab$river_dens + 1)
+    G = log(corrtab$tri + 1)
+    model = lm(var ~ B + C + D + E + G)# + epsilon) 
+    # print(summary(model))
+    model %>% 
       coef() %>%
       t() %>% 
       as_tibble() %>% 
-      mutate(scale = scale,
+      mutate(scale = s,
              var = field) %>% 
-      select(var, scale, alpha = 1, beta, gamma)
+      select(var, scale, A = 1, B, C, D, E, G)#, epsilon)
   }) %>% bind_rows()
 }) %>% bind_rows() %>%
   mutate(scale = factor(scale, levels = scales)) %>% 
   arrange(desc(var), scale)
 
 lms_wide = lms %>% 
-  pivot_wider(id_cols = scale, names_from = var, values_from = alpha:gamma)
+  pivot_wider(id_cols = scale, names_from = var, values_from = A:G)#epsilon)
 
 lms_all = filter(lms_wide, is.na(scale)) %>% 
   mutate(count = 3) %>% 
@@ -519,94 +664,126 @@ lms_all = filter(lms_wide, is.na(scale)) %>%
   setNames(paste(names(.), '_all', sep = '')) %>% 
   rename(scale = 1)
   
-tabreg = left_join(tab, lms_wide, by = c('Scale' = 'scale')) %>% 
-  left_join(lms_all, by = c('Scale' = 'scale')) %>% 
-  mutate(rpnt_density = pnt_density / (alpha_rel_pnt_density_all + beta_rel_pnt_density_all * log(urban + 1) + gamma_rel_pnt_density_all * log(crops + 1)),
-         robj_density = obj_density / (alpha_rel_obj_density_all + beta_rel_obj_density_all * log(urban + 1) + gamma_rel_obj_density_all * log(crops + 1)),
-         rint_density = int_density / (alpha_rel_int_density_all + beta_rel_int_density_all * log(urban + 1) + gamma_rel_int_density_all * log(crops + 1)))
+tabreg = left_join(stats, lms_wide, by = c('scale' = 'scale')) %>% 
+  left_join(lms_all, by = c('scale' = 'scale')) %>% 
+  mutate(rpnt_density = pnt_density / (A_rel_pnt_density_all + 
+                                       B_rel_pnt_density_all * log(urban + 1) + 
+                                       C_rel_pnt_density_all * log(crops + 1) + 
+                                       D_rel_pnt_density_all * log(dens + 1) + 
+                                       E_rel_pnt_density_all * log(river_dens + 1) +
+                                       G_rel_pnt_density_all * log(tri + 1)),
+         
+         rlin_density = lin_density / (A_rel_lin_density_all + 
+                                       B_rel_lin_density_all * log(urban + 1) + 
+                                       C_rel_lin_density_all * log(crops + 1) + 
+                                       D_rel_lin_density_all * log(dens + 1) + 
+                                       E_rel_lin_density_all * log(river_dens + 1) +
+                                       G_rel_lin_density_all * log(tri + 1)),
+         
+         robj_density = obj_density / (A_rel_obj_density_all + 
+                                       B_rel_obj_density_all * log(urban + 1) +
+                                       C_rel_obj_density_all * log(crops + 1) + 
+                                       D_rel_obj_density_all * log(dens + 1) +
+                                       E_rel_obj_density_all * log(river_dens + 1) +
+                                       G_rel_obj_density_all * log(tri + 1)), 
+         
+         rint_density = int_density / (A_rel_int_density_all +
+                                       B_rel_int_density_all * log(urban + 1) + 
+                                       C_rel_int_density_all * log(crops + 1) + 
+                                       D_rel_int_density_all * log(dens + 1) +
+                                       E_rel_int_density_all * log(river_dens + 1) +
+                                       G_rel_int_density_all * log(tri + 1)))
 
-knitr::kable(lms, caption = 'Коэффициенты линейной регрессии между логарифмом процентной доли урбанизированных территорий, логарифмом процентной доли с/х угодий и плотностными параметрами детализации карты')
+knitr::kable(lms, caption = 'Коэффициенты линейной регрессии между нормированными плотностными метриками детализации и факторами')
 ```
 
-На заключительном этапе анализа была проанализирована возможность приводить плотностные характеристики детализации к средней для масштаба величине с использованием найденных регрессий. Зная для каждой территории долю урбанизированных и сельскохозяйственных земель, получаем ожидаемое превышение плотности объектов по отношению к средней для масштаба плоности. Поделив фактическую плотность на ожидаемое превышение, получаем приведенную величину плотности. Результирующие данные представлены на Рис. \@ref(fig:denstatsnorm). Построенные графики свидетельствуют о том, что выполненное приведение способствует существенному нивелированию территориальных контрастов в плотности картографических объектов, обсуловленных неравномерным хозяйственным освоением территории. На представленных диаграммах уже нет случаев, когда плотность объектоа отличается на 1-2 порядка, хотя отличия в несколько раз по прежнему имеются. 
+Получив искомую зависимость, можем поделить изначально посчитанные плотностные характеристики детализации на ожидаемое превышение по отношению к средней величине:
 
-```{r denstatsnorm, fig.width=10, fig.height=14, fig.cap='Relative characteristics of geometric detail (density)'}
-p1 = ggplot(tabreg, mapping = aes(name, rpnt_density, fill = Scale)) +
+```{r denstatsnorm, fig.width=10, fig.height=14, fig.cap='Плотностные метрики детализации, нормированные на ожидаемое среднее значение'}
+p1 = ggplot(tabreg, mapping = aes(region, rpnt_density, fill = scale)) +
   geom_col(position = "dodge") +
   coord_flip() +
   xlab(NULL) +
   guides(fill = guide_legend(reverse=T)) +
-  ggtitle('Vertex density per 100 sq. km')
+  ggtitle('Плотность вершин на 100 кв. км')
 
-p2 = ggplot(tabreg, mapping = aes(name, robj_density, fill = Scale)) +
+p2 = ggplot(tabreg, mapping = aes(region, rlin_density, fill = scale)) +
   geom_col(position = "dodge") +
   coord_flip() +
   xlab(NULL) +
   guides(fill = guide_legend(reverse=T)) +
-  ggtitle('Object density per 100 sq. km')
+  ggtitle('Густота линий, км на 100 кв. км')
 
-p3 = ggplot(tabreg, mapping = aes(name, rint_density, fill = Scale)) +
+p3 = ggplot(tabreg, mapping = aes(region, robj_density, fill = scale)) +
   geom_col(position = "dodge") +
   coord_flip() +
   xlab(NULL) +
   guides(fill = guide_legend(reverse=T)) +
-  ggtitle('Intersection density per 100 sq. km')
+  ggtitle('Плотность объектов на 100 кв. км')
 
-(p1 / p2 / p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+p4 = ggplot(tabreg, mapping = aes(region, rint_density, fill = scale)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  xlab(NULL) +
+  guides(fill = guide_legend(reverse=T)) +
+  ggtitle('Плотность пересечений на 100 кв. км')
+
+(p1 / p2 / p3 / p4) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+# (p1 / p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
 ```
 
-Диаграммы размаха (Рис. \@ref(fig:densboxnorm)) демонстрируют существенно более компактный интерквартильный разброс, при этом медианные значения смещаются незначительно, что позволяет говорить о более качественной разделимости уровней детализации после выполненного преобразования данных. Это статистически подтверждается результатами теста Стьюдента на равенство средних, приведенными в Таблице \@ref(tab:abs-pvalues-norm): p-значения для всех масштабных переходов имеют величину ниже 0.005, что существенно лучше, чем аналогичые результаты, полученные для исходных, не преобразованных данных.
+Аналогично сгруппируем по масштабам:
 
-```{r densboxnorm, fig.width=10, fig.height=5, fig.cap='Distribution of relative geometric detail characteristics (density)'}
-p1 = ggplot(tabreg, mapping = aes(Scale, rpnt_density, fill = Scale)) +
+```{r densboxnorm, fig.width=10, fig.height=5, fig.cap='Плотностные метрики детализации, нормированные на ожидаемое среднее значение'}
+p1 = ggplot(tabreg, mapping = aes(scale, rpnt_density, fill = scale)) +
   geom_boxplot() +
   ylab('на 100 кв. км') +
   theme(legend.position = "none") +
-  ggtitle('Vertex density')
+  ggtitle('Плотность вершин на 100 кв. км')
 
-p2 = ggplot(tabreg, mapping = aes(Scale, robj_density, fill = Scale)) +
+p2 = ggplot(tabreg, mapping = aes(scale, rlin_density, fill = scale)) +
+  geom_boxplot() +
+  ylab('км на 100 кв. км') +
+  theme(legend.position = "none") +
+  ggtitle('Густота линий, км на 100 кв. км')
+
+p3 = ggplot(tabreg, mapping = aes(scale, robj_density, fill = scale)) +
   geom_boxplot() +
   ylab('на 100 кв. км') +
   theme(legend.position = "none") +
-  ggtitle('Object density')
+  ggtitle('Плотность объектов на 100 кв. км')
 
-p3 = ggplot(tabreg, mapping = aes(Scale, rint_density, fill = Scale)) +
+p4 = ggplot(tabreg, mapping = aes(scale, rint_density, fill = scale)) +
   geom_boxplot() +
   ylab('на 100 кв. км') +
-  ggtitle('Intersection density')
+  ggtitle('Плотность пересечений на 100 кв. км')
 
-(p1 | p2 | p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+(p1 | p2 | p3 | p4) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
+# (p1 | p3) + plot_annotation(tag_levels = 'a', tag_suffix = ')')
 ```
+
+Оценим значимости отличий в средних:
 
 ```{r abs-pvalues-norm}
 pvalues = tibble(
-  param = rep(c('pnt_density', 'obj_density', 'int_density'), each = 2),
-  scale1 = rep(c(200, 500), 3),
-  scale2 = rep(c(500, 1000), 3),
+  param = rep(c('pnt_density', 'line_density', 'obj_density', 'int_density'), each = 2),
+  scale1 = rep(c(200, 500), 4),
+  scale2 = rep(c(500, 1000), 4),
+  # param = rep(c('pnt_density', 'int_density'), each = 2),
+  # scale1 = rep(c(200, 500), 2),
+  # scale2 = rep(c(500, 1000), 2),
   `p-value` = c(
-    t.test(tabreg %>% filter(Scale == 200) %>% pull(rpnt_density), tabreg %>% filter(Scale == 500) %>% pull(rpnt_density))$p.value,
-    t.test(tabreg %>% filter(Scale == 500) %>% pull(rpnt_density), tabreg %>% filter(Scale == 1000) %>% pull(rpnt_density))$p.value,
-    t.test(tabreg %>% filter(Scale == 200) %>% pull(robj_density), tabreg %>% filter(Scale == 500) %>% pull(robj_density))$p.value,
-    t.test(tabreg %>% filter(Scale == 500) %>% pull(robj_density), tabreg %>% filter(Scale == 1000) %>% pull(robj_density))$p.value,
-    t.test(tabreg %>% filter(Scale == 200) %>% pull(rint_density), tabreg %>% filter(Scale == 500) %>% pull(rint_density))$p.value,
-    t.test(tabreg %>% filter(Scale == 500) %>% pull(rint_density), tabreg %>% filter(Scale == 1000) %>% pull(rint_density))$p.value
+    t.test(tabreg %>% filter(scale == 200) %>% pull(rpnt_density), tabreg %>% filter(scale == 500) %>% pull(rpnt_density))$p.value,
+    t.test(tabreg %>% filter(scale == 500) %>% pull(rpnt_density), tabreg %>% filter(scale == 1000) %>% pull(rpnt_density))$p.value,
+    t.test(tabreg %>% filter(scale == 200) %>% pull(rlin_density), tabreg %>% filter(scale == 500) %>% pull(rlin_density))$p.value,
+    t.test(tabreg %>% filter(scale == 500) %>% pull(rlin_density), tabreg %>% filter(scale == 1000) %>% pull(rlin_density))$p.value,
+    t.test(tabreg %>% filter(scale == 200) %>% pull(robj_density), tabreg %>% filter(scale == 500) %>% pull(robj_density))$p.value,
+    t.test(tabreg %>% filter(scale == 500) %>% pull(robj_density), tabreg %>% filter(scale == 1000) %>% pull(robj_density))$p.value,
+    t.test(tabreg %>% filter(scale == 200) %>% pull(rint_density), tabreg %>% filter(scale == 500) %>% pull(rint_density))$p.value,
+    t.test(tabreg %>% filter(scale == 500) %>% pull(rint_density), tabreg %>% filter(scale == 1000) %>% pull(rint_density))$p.value
   )
 )
-knitr::kable(pvalues, caption = 'p-values of Student test on mean equality for normalized relative geometric detail characteristics')
+knitr::kable(pvalues, caption = 'p-значения теста Стьюдента на равенство средних значений плотностных характеристик детализации, деленных на ожидаемое превышение относительно среднего по всем участкам')
 ```
 
-Таким образом, можно утверждать, что разработанный нами подход позволяет учесть неравномерность хозяйственного освоения территории при оценке детализации картографических данных. Тем не менее, остающиеся неравномерности в детализации требуют дальнейших поисков предикторов, в том числе в части сложности природной компоненты ландшафта.
-
-# Выводы
-
-На основе проведенных исследований были сделаны следующие выводы:
-
-1. Характеристики геометрической детализации карты целесообразно разделить на относительные, характеризующие плотность размещения объектов, и абсолютные, характеризующие их размеры. Эти два вида характеристик являются объектами цензов и норм отбора объектов на картах, но также имеют географическую обусловленность. 
-
-2. Относительные характеристики детализации менее надежно характеризуют уровень детализации данных, поскольку зависят от степени хозяйственной освоенности территории и сложности природного ландшафта. Чем более освоена территория и сложнее ландшафт, тем выше будет плотность элементов карты. Первый фактор влияет на плотность представления социально-экономических объектов, второй фактор — на плотность представления природных объектов на картах.
-
-3. Надежность абсолютных характеристик (размеров объектов) зависит от сложности картографируемой территории: при невысокой сложности плотность объектов низка и выборка не позволяет получить состоятельные оценки средних и минимальных размеров объектов. При этом, однако, абсолютные характеристики не имеют явной зависимости от сложности картографируемой территории.
-
-4. Разделение карт по детализации на основе относительных (плотностных) характеристик не может быть надежно осуществлено без привлечения независимой (внешней) информации о сложности территории в социально-экономическом и природном отношении. Для этих целей могут быть использованы геоинформационные продукты, полученные на основе данных дистанционного зондирования, такие как растры типов земельного покрова.
-
-5. Для компенсации влияния сложности территории на относительные характеристики детализации может быть использован переход к приведенным значениям плотности размещения объектов путем их нормирования на среднюю для масштаба плотность. Приведенная плотность показывает статистически значимую корреляционную связь с логарифмированными значениями доли урбанизированных и сельскохозяйственных земель, и может быть смоделирована на их основе путем линейной регрессии. Таким образом, подобрав единожды модель регрессии между этими величинами и зная долю урбанизированных и сельскохозяйственных земель для участка, покрытого данными, можно предсказать, насколько покрывающие территорию данные должны отличаться по плотности размещения объектов от среднестатистических для данного масштаба. Применение данного подхода позволяет качественно улучшить разделимость уровней детализации на основе плотностных характеристик: дисперсии величин и p-значения теста Стьюдента на отличия в их средних снижаются в несколько раз. 
+Как видно, p-значения улучшились, что свидительствует о полезности проведенной процедуры. Однако разделимость полного набора данных по прежнему не так хороша, как разделимость социально-экономических компонентов карты. Дальнейшие исследования будут направлены на улучшение разделимости уровней детализации карт по физико-географическим компонентам и в целом по полной совокупности данных.
